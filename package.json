@@ -1,0 +1,23 @@
+{
+  "name": "chatgpt-graph-extension",
+  "version": "0.1.0",
+  "description": "Visualize ChatGPT conversations as navigable knowledge graphs in a Chrome extension.",
+  "type": "module",
+  "scripts": {
+    "dev": "echo 'Load unpacked extension from root directory'",
+    "lint": "eslint src/",
+    "format": "prettier --write \"src/**/*.{js,json,css,html}\""
+  },
+  "keywords": [
+    "chatgpt",
+    "chrome-extension",
+    "graph",
+    "visualization"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0"
+  }
+}

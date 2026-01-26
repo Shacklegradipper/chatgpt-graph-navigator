@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-i18n-title="setupTitle">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChatGPT Graph - Setup</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 700px;
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 32px;
+      text-align: center;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      font-size: 16px;
+      opacity: 0.95;
+    }
+
+    .content {
+      padding: 32px;
+    }
+
+    .step {
+      margin-bottom: 32px;
+      padding-bottom: 32px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .step:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      background: #667eea;
+      color: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      margin-right: 12px;
+      flex-shrink: 0;
+    }
+
+    .step-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #111827;
+    }
+
+    .step-content {
+      margin-left: 44px;
+      color: #4b5563;
+      line-height: 1.6;
+    }
+
+    .step-content p {
+      margin-bottom: 12px;
+    }
+
+    .step-content ol {
+      margin-left: 20px;
+      margin-bottom: 12px;
+    }
+
+    .step-content li {
+      margin-bottom: 8px;
+    }
+
+    .code-box {
+      background: #f3f4f6;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      color: #1f2937;
+      margin: 12px 0;
+      word-break: break-all;
+    }
+
+    .screenshot {
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      margin: 12px 0;
+      max-width: 100%;
+    }
+
+    .input-group {
+      margin: 16px 0;
+    }
+
+    .input-group label {
+      display: block;
+      font-weight: 600;
+      color: #374151;
+      margin-bottom: 8px;
+    }
+
+    .input-group textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 12px;
+      border: 2px solid #d1d5db;
+      border-radius: 8px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      resize: vertical;
+      transition: border-color 0.2s;
+    }
+
+    .input-group textarea:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    button {
+      flex: 1;
+      padding: 14px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    button.primary {
+      background: #667eea;
+      color: white;
+    }
+
+    button.primary:hover {
+      background: #5568d3;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    button.secondary:hover {
+      background: #d1d5db;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    .alert {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+
+    .alert.success {
+      background: #d1fae5;
+      color: #065f46;
+      border: 1px solid #6ee7b7;
+    }
+
+    .alert.error {
+      background: #fee2e2;
+      color: #991b1b;
+      border: 1px solid #fca5a5;
+    }
+
+    .alert.warning {
+      background: #fef3c7;
+      color: #92400e;
+      border: 1px solid #fcd34d;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid white;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* 语言切换器样式 */
+    .language-switcher {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: rgba(255, 255, 255, 0.25);
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      backdrop-filter: blur(10px);
+    }
+
+    .language-switcher label {
+      font-size: 13px;
+      font-weight: 500;
+      color: white;
+      white-space: nowrap;
+    }
+
+    .language-select {
+      padding: 4px 8px;
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.9);
+      font-size: 13px;
+      color: #1f2937;
+      cursor: pointer;
+      transition: all 0.2s;
+      outline: none;
+    }
+
+    .language-select:hover {
+      background: white;
+      border-color: rgba(255, 255, 255, 0.6);
+    }
+
+    .language-select:focus {
+      background: white;
+      border-color: white;
+      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div id="language-switcher-container" style="position: absolute; top: 16px; right: 16px;"></div>
+      <h1 data-i18n="setupTitle">🌲 ChatGPT Graph Navigator</h1>
+      <p data-i18n="setupSubtitle">Setup - Get Your Authentication Token</p>
+    </div>
+
+    <div class="content">
+      <!-- Step 1 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">1</div>
+          <div class="step-title" data-i18n="step1Title">打开 ChatGPT 并登录</div>
+        </div>
+        <div class="step-content">
+          <p data-i18n="step1Content">前往 <strong>https://chatgpt.com</strong> 并确保你已经登录你的账号。</p>
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">2</div>
+          <div class="step-title" data-i18n="step2Title">打开开发者工具</div>
+        </div>
+        <div class="step-content">
+          <p data-i18n="step2Content">在 ChatGPT 页面上,按下键盘上的：</p>
+          <ul>
+            <li data-i18n="step2Windows"><strong>Windows/Linux:</strong> F12 或 Ctrl + Shift + I</li>
+            <li data-i18n="step2Mac"><strong>Mac:</strong> Cmd + Option + I</li>
+          </ul>
+          <p data-i18n="step2Footer">开发者工具会在页面底部或右侧打开。</p>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">3</div>
+          <div class="step-title" data-i18n="step3Title">切换到 Network 标签页</div>
+        </div>
+        <div class="step-content">
+          <p data-i18n="step3Content">在开发者工具的顶部，点击 <strong>"Network"</strong> (网络) 标签页。</p>
+        </div>
+      </div>
+
+      <!-- Step 4 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">4</div>
+          <div class="step-title" data-i18n="step4Title">触发 API 请求</div>
+        </div>
+        <div class="step-content">
+          <p data-i18n="step4Content">在 ChatGPT 中发送一条消息（任何内容都可以），或者刷新页面 (F5)。<br>这会触发 API 请求，我们可以从中获取 token。</p>
+        </div>
+      </div>
+
+      <!-- Step 5 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">5</div>
+          <div class="step-title" data-i18n="step5Title">查找 backend-api 请求</div>
+        </div>
+        <div class="step-content">
+          <p data-i18n="step5Content">在 Network 标签页的请求列表中，找到任何以 <code>backend-api</code> 开头的请求，例如：</p>
+          <div class="code-box" data-i18n="step5Examples">backend-api/conversation<br>backend-api/conversations<br>backend-api/me</div>
+          <p data-i18n="step5Footer">点击该请求。</p>
+        </div>
+      </div>
+
+      <!-- Step 6 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">6</div>
+          <div class="step-title" data-i18n="step6Title">复制 Authorization Token</div>
+        </div>
+        <div class="step-content">
+          <ol>
+            <li data-i18n="step6Item1">在右侧面板中，点击 <strong>"Headers"</strong> (请求头) 标签页</li>
+            <li data-i18n="step6Item2">向下滚动找到 <strong>"Request Headers"</strong> (请求标头) 部分</li>
+            <li data-i18n="step6Item3">找到 <strong>"authorization:"</strong> 这一行</li>
+            <li data-i18n="step6Item4">它的值是 <code>Bearer eyJhbGci...</code> 这样的格式</li>
+            <li data-i18n="step6Item5"><strong>只复制 "Bearer " 后面的部分</strong>（不包括 "Bearer " 这个词）</li>
+          </ol>
+          <p data-i18n="step6Footer">Token 通常很长（1000+ 字符），以 <code>eyJ</code> 开头。</p>
+        </div>
+      </div>
+
+      <!-- Step 7 -->
+      <div class="step">
+        <div class="step-header">
+          <div class="step-number">7</div>
+          <div class="step-title" data-i18n="step7Title">粘贴 Token</div>
+        </div>
+        <div class="step-content">
+          <div class="input-group">
+            <label for="token-input" data-i18n="step7Label">粘贴你的 Access Token:</label>
+            <textarea
+              id="token-input"
+              data-i18n-placeholder="step7Placeholder"
+              placeholder="eyJhbGciOiJSUzI1NiIsImtpZCI6IjE5MzQ0ZTY1LWJiYzktNDRkMS1hOWQwLWY5NTdi..."
+            ></textarea>
+          </div>
+
+          <div id="alert-container"></div>
+
+          <div class="button-group">
+            <button class="secondary" id="test-btn" data-i18n="testTokenBtn">
+              测试 Token
+            </button>
+            <button class="primary" id="save-btn" disabled data-i18n="saveCompleteBtn">
+              保存并完成
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Help -->
+      <div class="step">
+        <div class="alert warning">
+          <strong data-i18n="securityWarningTitle">⚠️ 安全提示：</strong><br>
+          <span data-i18n="securityWarning1">• Token 仅存储在你的本地浏览器中，不会发送到任何第三方服务器</span><br>
+          <span data-i18n="securityWarning2">• Token 有效期约 24 小时，过期后需要重新获取</span><br>
+          <span data-i18n="securityWarning3">• 不要将 token 分享给他人</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="setup.js" type="module"></script>
+</body>
+</html>
