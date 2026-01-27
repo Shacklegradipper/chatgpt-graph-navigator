@@ -5,6 +5,7 @@
  * 2. 管理 IndexedDB 数据库
  * 3. 缓存管理
  * 4. 消息中转
+ * 5. 侧边栏管理
  */
 
 import { setupMessageListener } from './messaging/message-handler.js';
@@ -26,6 +27,10 @@ async function initialize() {
     setupMessageListener();
     console.log('[Background] ✓ Message listener registered');
 
+    // 设置侧边栏行为
+    setupSidePanel();
+    console.log('[Background] ✓ Side panel configured');
+
     // 输出初始化信息
     console.log('[Background] ✓ Service Worker initialized successfully');
     console.log('[Background] Cache stats:', cache.getStats());
@@ -33,6 +38,29 @@ async function initialize() {
   } catch (error) {
     console.error('[Background] Initialization failed:', error);
   }
+}
+
+/**
+ * 设置侧边栏行为
+ */
+function setupSidePanel() {
+  // 点击扩展图标时打开侧边栏
+  chrome.action.onClicked.addListener(async (tab) => {
+    console.log('[Background] Extension icon clicked, opening side panel');
+
+    try {
+      // 打开侧边栏
+      await chrome.sidePanel.open({ tabId: tab.id });
+      console.log('[Background] ✓ Side panel opened');
+    } catch (error) {
+      console.error('[Background] Failed to open side panel:', error);
+    }
+  });
+
+  // 设置侧边栏仅在 ChatGPT 页面可用
+  chrome.sidePanel.setOptions({
+    enabled: true
+  });
 }
 
 /**

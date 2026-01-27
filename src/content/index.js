@@ -27,6 +27,115 @@ let urlObserver = null;
 let messageObserver = null;
 
 /**
+ * 设置来自 sidepanel 的消息监听
+ */
+function setupMessageListener() {
+  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    log('debug', 'Content', 'Received message:', message.type);
+
+    if (message.type === MESSAGE_TYPES.SCROLL_TO_MESSAGE) {
+      const { messageId } = message.payload || {};
+      if (messageId) {
+        scrollToMessage(messageId);
+        sendResponse({ success: true });
+      } else {
+        sendResponse({ success: false, error: 'No messageId provided' });
+      }
+      return true;
+    }
+
+    return false;
+  });
+
+  log('info', 'Content', 'Message listener set up for sidepanel commands');
+}
+
+/**
+ * 滚动到指定消息
+ * @param {string} messageId - 消息 ID (data-message-id)
+ */
+function scrollToMessage(messageId) {
+  log('info', 'Content', `Scrolling to message: ${messageId.substring(0, 16)}...`);
+
+  // 尝试多种方式查找消息元素
+  let targetElement = null;
+
+  // 1. 通过 data-message-id 属性查找
+  targetElement = document.querySelector(`[data-message-id="${messageId}"]`);
+
+  // 2. 通过 data-turn-id 属性查找（ChatGPT 新版本可能使用这个）
+  if (!targetElement) {
+    targetElement = document.querySelector(`[data-turn-id="${messageId}"]`);
+  }
+
+  // 3. 如果是 round 的 lastMessageId，尝试查找对应的 article
+  if (!targetElement) {
+    const articles = document.querySelectorAll('article[data-turn-id]');
+    for (const article of articles) {
+      const turnId = article.getAttribute('data-turn-id');
+      if (turnId === messageId) {
+        targetElement = article;
+        break;
+      }
+    }
+  }
+
+  if (targetElement) {
+    // 高亮效果
+    highlightElement(targetElement);
+
+    // 滚动到元素
+    targetElement.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
+
+    log('info', 'Content', '✓ Scrolled to message');
+  } else {
+    log('warn', 'Content', `Message element not found: ${messageId}`);
+
+    // 尝试模糊匹配（消息 ID 的前缀匹配）
+    const allArticles = document.querySelectorAll('article[data-turn-id]');
+    for (const article of allArticles) {
+      const turnId = article.getAttribute('data-turn-id');
+      if (turnId && (turnId.startsWith(messageId) || messageId.startsWith(turnId))) {
+        highlightElement(article);
+        article.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+        log('info', 'Content', '✓ Scrolled to message (fuzzy match)');
+        return;
+      }
+    }
+  }
+}
+
+/**
+ * 高亮元素（短暂闪烁效果）
+ * @param {HTMLElement} element - 要高亮的元素
+ */
+function highlightElement(element) {
+  // 保存原始样式
+  const originalOutline = element.style.outline;
+  const originalTransition = element.style.transition;
+
+  // 添加高亮样式
+  element.style.transition = 'outline 0.3s ease';
+  element.style.outline = '3px solid #3b82f6';
+
+  // 短暂延迟后移除高亮
+  setTimeout(() => {
+    element.style.outline = '3px solid transparent';
+
+    setTimeout(() => {
+      element.style.outline = originalOutline;
+      element.style.transition = originalTransition;
+    }, 300);
+  }, 1000);
+}
+
+/**
  * 主函数
  */
 async function main() {
@@ -37,6 +146,9 @@ async function main() {
     showExtensionReloadWarning();
     return;
   }
+
+  // 设置消息监听器（在最早期就设置，以便接收来自 sidepanel 的消息）
+  setupMessageListener();
 
   // 检查是否在对话页面
   if (!isConversationPage()) {

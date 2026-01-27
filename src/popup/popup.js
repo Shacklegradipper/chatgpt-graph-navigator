@@ -147,6 +147,11 @@ async function loadStatusContent() {
 
     // 操作按钮
     statusHtml += `
+      <div class="actions" style="margin-bottom: 8px;">
+        <button class="primary" id="open-sidepanel-btn" style="flex: 1;">
+          📊 ${i18n('openGraphBtn') || 'Open Graph View'}
+        </button>
+      </div>
       <div class="actions">
         <button class="secondary" id="update-btn">
           ${tokenExpired ? i18n('updateTokenBtn') : i18n('changeTokenBtn')}
@@ -175,8 +180,27 @@ async function loadStatusContent() {
     container.innerHTML = statusHtml;
 
     // 绑定事件
+    const openSidePanelBtn = document.getElementById('open-sidepanel-btn');
     const updateBtn = document.getElementById('update-btn');
     const clearBtn = document.getElementById('clear-btn');
+
+    if (openSidePanelBtn) {
+      openSidePanelBtn.addEventListener('click', async () => {
+        try {
+          // 获取当前标签页
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (tab) {
+            // 打开侧边栏
+            await chrome.sidePanel.open({ tabId: tab.id });
+            // 关闭 popup
+            window.close();
+          }
+        } catch (error) {
+          console.error('Failed to open side panel:', error);
+          alert('Failed to open side panel: ' + error.message);
+        }
+      });
+    }
 
     if (updateBtn) {
       updateBtn.addEventListener('click', () => {

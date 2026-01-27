@@ -186,7 +186,26 @@ async function handleGetAllConversations() {
 
   const conversations = await db.getAllConversations();
 
-  return conversations;
+  // 为每个对话获取完整数据（包括 rounds）
+  const fullConversations = await Promise.all(
+    conversations.map(async (conv) => {
+      try {
+        const nodes = await db.getNodes(conv.id);
+        const rounds = await db.getRounds(conv.id);
+
+        return {
+          ...conv,
+          nodes,
+          rounds
+        };
+      } catch (error) {
+        console.error(`[Background] Failed to get full data for ${conv.id}:`, error);
+        return conv;
+      }
+    })
+  );
+
+  return fullConversations;
 }
 
 /**

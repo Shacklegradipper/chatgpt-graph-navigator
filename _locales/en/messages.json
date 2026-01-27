@@ -385,5 +385,8 @@
   },
   "languageLabel": {
     "message": "Language:"
+  },
+  "openGraphBtn": {
+    "message": "Open Graph View"
   }
 }

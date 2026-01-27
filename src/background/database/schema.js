@@ -3,7 +3,7 @@
  */
 
 export const DB_NAME = 'ChatGPTGraphDB';
-export const DB_VERSION = 1;
+export const DB_VERSION = 3;  // 增加版本号以触发升级
 
 /**
  * 对象存储定义
@@ -56,20 +56,33 @@ export function upgradeDatabase(db, event) {
   const newVersion = event.newVersion;
 
   console.log(`[DB] Upgrading database from v${oldVersion} to v${newVersion}`);
+  console.log(`[DB] Existing object stores:`, Array.from(db.objectStoreNames));
 
-  // 创建对象存储
-  for (const [storeName, config] of Object.entries(OBJECT_STORES)) {
-    if (!db.objectStoreNames.contains(storeName)) {
-      const store = db.createObjectStore(storeName, { keyPath: config.keyPath });
+  try {
+    // 创建对象存储
+    for (const [storeName, config] of Object.entries(OBJECT_STORES)) {
+      if (!db.objectStoreNames.contains(storeName)) {
+        console.log(`[DB] Creating object store: ${storeName}`);
 
-      // 创建索引
-      if (config.indexes) {
-        for (const index of config.indexes) {
-          store.createIndex(index.name, index.keyPath, { unique: index.unique });
+        const store = db.createObjectStore(storeName, { keyPath: config.keyPath });
+
+        // 创建索引
+        if (config.indexes) {
+          for (const index of config.indexes) {
+            console.log(`[DB]   Creating index: ${index.name}`);
+            store.createIndex(index.name, index.keyPath, { unique: index.unique });
+          }
         }
-      }
 
-      console.log(`[DB] Created object store: ${storeName}`);
+        console.log(`[DB] ✓ Created object store: ${storeName}`);
+      } else {
+        console.log(`[DB] Object store already exists: ${storeName}`);
+      }
     }
+
+    console.log(`[DB] ✓ Database upgrade completed`);
+  } catch (error) {
+    console.error(`[DB] Error during database upgrade:`, error);
+    throw error;
   }
 }

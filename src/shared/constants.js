@@ -31,7 +31,10 @@ export const MESSAGE_TYPES = {
 
   // Service Worker → Side Panel
   DATA_READY: 'DATA_READY',
-  UPDATE_NOTIFICATION: 'UPDATE_NOTIFICATION'
+  UPDATE_NOTIFICATION: 'UPDATE_NOTIFICATION',
+
+  // Side Panel → Content Script (via tabs.sendMessage)
+  SCROLL_TO_MESSAGE: 'SCROLL_TO_MESSAGE'
 };
 
 // 节点角色

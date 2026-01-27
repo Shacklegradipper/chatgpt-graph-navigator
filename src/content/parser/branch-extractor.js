@@ -87,7 +87,11 @@ export function buildRounds(nodes) {
   // 找到所有用户消息
   const userNodes = nodes.filter(node => node.role === 'user');
 
+  let roundNumber = 0;
+
   for (const userNode of userNodes) {
+    roundNumber++;
+
     // 找到对应的 assistant 回复
     const assistantNode = userNode.children
       .map(childId => nodeMap.get(childId))
@@ -96,9 +100,29 @@ export function buildRounds(nodes) {
     // 找到父 Round
     const parentRoundId = findParentRound(userNode, nodeMap, rounds);
 
+    // 计算深度（基于父 round 的深度）
+    const parentRound = rounds.find(r => r.id === parentRoundId);
+    const depth = parentRound ? parentRound.depth + 1 : 0;
+
     const round = {
       id: `round_${userNode.id}`,
       conversationId: userNode.conversationId,
+      roundNumber: roundNumber,
+      depth: depth,
+      // 包含完整的消息对象
+      userMessage: {
+        id: userNode.id,
+        role: 'user',
+        content: userNode.content,
+        createTime: userNode.createTime
+      },
+      assistantMessage: assistantNode ? {
+        id: assistantNode.id,
+        role: 'assistant',
+        content: assistantNode.content,
+        createTime: assistantNode.createTime
+      } : null,
+      // 保留 ID 引用
       userMessageId: userNode.id,
       assistantMessageId: assistantNode ? assistantNode.id : null,
       parentRoundId: parentRoundId,

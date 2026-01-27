@@ -22,6 +22,7 @@ export class Database {
     }
 
     return new Promise((resolve, reject) => {
+      console.log(`[DB] Opening database: ${DB_NAME} v${DB_VERSION}`);
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 
       request.onerror = () => {
@@ -32,12 +33,38 @@ export class Database {
       request.onsuccess = () => {
         this.db = request.result;
         console.log('[DB] Database opened successfully');
+        console.log('[DB] Object stores:', Array.from(this.db.objectStoreNames));
+
+        // 验证对象存储是否存在
+        const requiredStores = ['conversations', 'nodes', 'rounds', 'branches'];
+        const missingStores = requiredStores.filter(store => !this.db.objectStoreNames.contains(store));
+
+        if (missingStores.length > 0) {
+          console.error('[DB] Missing object stores:', missingStores);
+          console.error('[DB] Database structure is invalid. Please delete and recreate.');
+          // 关闭数据库
+          this.db.close();
+          this.db = null;
+          reject(new Error(`Missing object stores: ${missingStores.join(', ')}`));
+          return;
+        }
+
         resolve(this.db);
       };
 
       request.onupgradeneeded = (event) => {
+        console.log('[DB] onupgradeneeded triggered');
         const db = event.target.result;
-        upgradeDatabase(db, event);
+        try {
+          upgradeDatabase(db, event);
+        } catch (error) {
+          console.error('[DB] Error during upgrade:', error);
+          reject(error);
+        }
+      };
+
+      request.onblocked = () => {
+        console.warn('[DB] Database upgrade blocked. Close all tabs using this database.');
       };
     });
   }
@@ -65,6 +92,41 @@ export class Database {
         reject(request.error);
       };
     });
+  }
+
+  /**
+   * 更新对话
+   * @param {string} id - 对话 ID
+   * @param {Object} updates - 更新的字段
+   * @returns {Promise<void>}
+   */
+  async updateConversation(id, updates) {
+    const db = await this.open();
+
+    // 获取现有对话
+    const existing = await this.getConversation(id);
+    if (!existing) {
+      throw new Error(`Conversation not found: ${id}`);
+    }
+
+    // 合并更新
+    const updated = { ...existing, ...updates };
+
+    // 保存更新后的对话
+    await this.saveConversation(updated);
+
+    // 如果包含 nodes/rounds/branches 更新，也保存它们
+    if (updates.nodes) {
+      await this.saveNodes(updates.nodes);
+    }
+    if (updates.rounds) {
+      await this.saveRounds(updates.rounds);
+    }
+    if (updates.branches) {
+      await this.saveBranches(updates.branches);
+    }
+
+    console.log(`[DB] ✓ Conversation updated: ${id}`);
   }
 
   /**
@@ -121,6 +183,30 @@ export class Database {
     const db = await this.open();
     const tx = db.transaction('nodes', 'readonly');
     const store = tx.objectStore('nodes');
+    const index = store.index('conversationId');
+
+    return new Promise((resolve, reject) => {
+      const request = index.getAll(conversationId);
+
+      request.onsuccess = () => {
+        resolve(request.result || []);
+      };
+
+      request.onerror = () => {
+        reject(request.error);
+      };
+    });
+  }
+
+  /**
+   * 获取对话的所有轮次
+   * @param {string} conversationId - 对话 ID
+   * @returns {Promise<Array>}
+   */
+  async getRounds(conversationId) {
+    const db = await this.open();
+    const tx = db.transaction('rounds', 'readonly');
+    const store = tx.objectStore('rounds');
     const index = store.index('conversationId');
 
     return new Promise((resolve, reject) => {

@@ -385,5 +385,8 @@
   },
   "languageLabel": {
     "message": "语言："
+  },
+  "openGraphBtn": {
+    "message": "打开图谱视图"
   }
 }

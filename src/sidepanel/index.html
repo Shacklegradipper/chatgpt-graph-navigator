@@ -1,119 +1,23 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-i18n-title="debugPanelTitle">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ChatGPT Graph - Debug Panel</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ChatGPT Graph</title>
   <style>
-    /* 语言切换器样式 */
-    #language-switcher-container {
-      margin-left: auto;
-    }
-
-    .language-switcher {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 8px;
-      background: white;
-      border-radius: 4px;
-      border: 1px solid #e5e7eb;
-    }
-
-    .language-switcher label {
-      font-size: 12px;
-      font-weight: 500;
-      color: #6b7280;
-      white-space: nowrap;
-    }
-
-    .language-select {
-      padding: 4px 8px;
-      border: 1px solid #d1d5db;
-      border-radius: 4px;
-      background: white;
-      font-size: 12px;
-      color: #1f2937;
-      cursor: pointer;
-      transition: all 0.2s;
-      outline: none;
-    }
-
-    .language-select:hover {
-      border-color: #9ca3af;
-    }
-
-    .language-select:focus {
-      border-color: #2563eb;
-      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+    /* 确保页面填满整个视口 */
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
     }
   </style>
+  <link rel="stylesheet" href="../../dist/sidepanel.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <div style="display: flex; justify-content: space-between; align-items: center;">
-        <div>
-          <h1>🌲 ChatGPT Graph</h1>
-          <p class="subtitle" data-i18n="debugPanelSubtitle">Debug Panel - V0.1</p>
-        </div>
-        <div id="language-switcher-container"></div>
-      </div>
-    </header>
-
-    <main>
-      <!-- 状态区域 -->
-      <section class="section">
-        <h2><span data-i18n="statusSection">📊 Status</span></h2>
-        <div id="status" class="status-box">
-          <div class="status-item">
-            <span class="label" data-i18n="statusExtension">Extension:</span>
-            <span id="ext-status" class="value" data-i18n="statusActive">Active</span>
-          </div>
-          <div class="status-item">
-            <span class="label" data-i18n="statusDatabase">Database:</span>
-            <span id="db-status" class="value" data-i18n="statusUnknown">Unknown</span>
-          </div>
-          <div class="status-item">
-            <span class="label" data-i18n="statusCurrentConv">Current Conversation:</span>
-            <span id="current-conv" class="value" data-i18n="statusNone">None</span>
-          </div>
-        </div>
-      </section>
-
-      <!-- 对话列表 -->
-      <section class="section">
-        <h2><span data-i18n="conversationsSection">💬 Conversations</span></h2>
-        <button id="refresh-btn" class="btn btn-primary" data-i18n="refreshListBtn">Refresh List</button>
-        <div id="conversations-list" class="list">
-          <p class="placeholder" data-i18n="noConversations">No conversations loaded yet</p>
-        </div>
-      </section>
-
-      <!-- 数据详情 -->
-      <section class="section">
-        <h2><span data-i18n="dataDetailsSection">📝 Data Details</span></h2>
-        <div id="data-details" class="details-box">
-          <p class="placeholder" data-i18n="selectConversation">Select a conversation to view details</p>
-        </div>
-      </section>
-
-      <!-- 日志区域 -->
-      <section class="section">
-        <h2><span data-i18n="logsSection">🔍 Logs</span></h2>
-        <button id="clear-logs-btn" class="btn btn-secondary" data-i18n="clearLogsBtn">Clear Logs</button>
-        <div id="logs" class="logs-box">
-          <p class="log-entry" data-i18n="systemLogLoaded">[System] Debug panel loaded</p>
-        </div>
-      </section>
-    </main>
-
-    <footer>
-      <p data-i18n="footerVersion">ChatGPT Graph Extension - Version 0.1.0</p>
-    </footer>
-  </div>
-
-  <script src="bundle.js" type="module"></script>
+  <div id="root"></div>
+  <script src="../../dist/sidepanel.js"></script>
 </body>
 </html>
