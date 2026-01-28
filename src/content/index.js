@@ -21,6 +21,7 @@ import { isConversationPage, waitForElement } from './utils/dom-helper.js';
 import { createURLObserver } from './observers/url-observer.js';
 import { createMessageObserver } from './observers/message-observer.js';
 import { conversationState } from './state/conversation-state.js';
+import { navigateToMessage, getCurrentDisplayedPath } from './utils/branch-navigator.js';
 
 // 全局观察器实例
 let urlObserver = null;
@@ -36,12 +37,19 @@ function setupMessageListener() {
     if (message.type === MESSAGE_TYPES.SCROLL_TO_MESSAGE) {
       const { messageId } = message.payload || {};
       if (messageId) {
-        scrollToMessage(messageId);
-        sendResponse({ success: true });
+        // 异步处理滚动（可能需要分支导航）
+        scrollToMessage(messageId)
+          .then(success => {
+            sendResponse({ success });
+          })
+          .catch(error => {
+            log('error', 'Content', 'scrollToMessage error:', error);
+            sendResponse({ success: false, error: error.message });
+          });
       } else {
         sendResponse({ success: false, error: 'No messageId provided' });
       }
-      return true;
+      return true; // 保持消息通道打开
     }
 
     // Sidepanel 手动刷新：触发重新抓取 API + 重新解析 mapping
@@ -83,23 +91,89 @@ function setupMessageListener() {
 
 /**
  * 滚动到指定消息
+ * 如果消息不在当前显示的分支上，会先导航到正确的分支
  * @param {string} messageId - 消息 ID (data-message-id)
+ * @returns {Promise<boolean>} 是否成功
  */
-function scrollToMessage(messageId) {
+async function scrollToMessage(messageId) {
   log('info', 'Content', `Scrolling to message: ${messageId.substring(0, 16)}...`);
 
   // 尝试多种方式查找消息元素
-  let targetElement = null;
+  let targetElement = findMessageElement(messageId);
 
+  if (targetElement) {
+    // 消息在当前分支上，直接滚动
+    highlightElement(targetElement);
+    targetElement.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center'
+    });
+    log('info', 'Content', '✓ Scrolled to message');
+    return true;
+  }
+
+  // 消息不在当前分支上，尝试分支导航
+  log('info', 'Content', 'Message not in current branch, attempting branch navigation...');
+
+  // 检查状态是否已初始化
+  if (!conversationState.isReady()) {
+    log('warn', 'Content', 'Conversation state not initialized, cannot navigate');
+    return false;
+  }
+
+  // 获取所有节点数据
+  const nodes = conversationState.getNodes();
+  if (!nodes || nodes.length === 0) {
+    log('warn', 'Content', 'No nodes available for navigation');
+    return false;
+  }
+
+  // 执行分支导航
+  try {
+    const result = await navigateToMessage(messageId, nodes);
+
+    if (result.success) {
+      // 导航成功，再次查找并滚动
+      await delay(300); // 等待 DOM 完全更新
+      targetElement = findMessageElement(messageId);
+
+      if (targetElement) {
+        highlightElement(targetElement);
+        targetElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center'
+        });
+        log('info', 'Content', '✓ Scrolled to message after branch navigation');
+        return true;
+      } else {
+        log('warn', 'Content', 'Message element still not found after navigation');
+        return false;
+      }
+    } else {
+      log('warn', 'Content', `Branch navigation failed: ${result.message}`);
+      return false;
+    }
+  } catch (error) {
+    log('error', 'Content', 'Branch navigation error:', error);
+    return false;
+  }
+}
+
+/**
+ * 查找消息元素
+ * @param {string} messageId - 消息 ID
+ * @returns {HTMLElement|null}
+ */
+function findMessageElement(messageId) {
   // 1. 通过 data-message-id 属性查找
-  targetElement = document.querySelector(`[data-message-id="${messageId}"]`);
+  let targetElement = document.querySelector(`[data-message-id="${messageId}"]`);
 
   // 2. 通过 data-turn-id 属性查找（ChatGPT 新版本可能使用这个）
   if (!targetElement) {
     targetElement = document.querySelector(`[data-turn-id="${messageId}"]`);
   }
 
-  // 3. 如果是 round 的 lastMessageId，尝试查找对应的 article
+  // 3. 遍历所有 article 查找
   if (!targetElement) {
     const articles = document.querySelectorAll('article[data-turn-id]');
     for (const article of articles) {
@@ -111,35 +185,19 @@ function scrollToMessage(messageId) {
     }
   }
 
-  if (targetElement) {
-    // 高亮效果
-    highlightElement(targetElement);
-
-    // 滚动到元素
-    targetElement.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center'
-    });
-
-    log('info', 'Content', '✓ Scrolled to message');
-  } else {
-    log('warn', 'Content', `Message element not found: ${messageId}`);
-
-    // 尝试模糊匹配（消息 ID 的前缀匹配）
+  // 4. 尝试模糊匹配（消息 ID 的前缀匹配）
+  if (!targetElement) {
     const allArticles = document.querySelectorAll('article[data-turn-id]');
     for (const article of allArticles) {
       const turnId = article.getAttribute('data-turn-id');
       if (turnId && (turnId.startsWith(messageId) || messageId.startsWith(turnId))) {
-        highlightElement(article);
-        article.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
-        log('info', 'Content', '✓ Scrolled to message (fuzzy match)');
-        return;
+        targetElement = article;
+        break;
       }
     }
   }
+
+  return targetElement;
 }
 
 /**

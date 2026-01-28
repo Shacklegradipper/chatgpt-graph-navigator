@@ -245,6 +245,14 @@ class ConversationState {
   isReady() {
     return this.isInitialized && this.conversationId !== null;
   }
+
+  /**
+   * 获取所有节点
+   * @returns {Object[]} 节点数组
+   */
+  getNodes() {
+    return this.nodes;
+  }
 }
 
 // 导出单例实例
