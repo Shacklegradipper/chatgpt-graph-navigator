@@ -14,6 +14,26 @@ import { log } from '../../shared/utils.js';
 export function parseMapping(mapping, conversationId) {
   log('info', 'Parser', 'Parsing mapping...');
 
+  // ChatGPT conversation API 的 message.content 结构可能随时间演进：
+  // - { content_type: 'text', parts: [...] }
+  // - { content_type: 'text', text: '...' }
+  // - parts 里可能混入非 string（例如对象/数组）
+  // 这里做一个更健壮的 normalize。
+  const normalizeText = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(normalizeText).join('');
+    if (typeof value === 'object') {
+      if (Array.isArray(value.parts)) return value.parts.map(normalizeText).join('');
+      if (typeof value.text === 'string') return value.text;
+    }
+    try {
+      return String(value);
+    } catch {
+      return '';
+    }
+  };
+
   const nodes = [];
 
   for (const nodeId in mapping) {
@@ -28,7 +48,7 @@ export function parseMapping(mapping, conversationId) {
       id: nodeId,
       conversationId,
       role: node.message.author.role,
-      content: node.message.content.parts?.join('') || '',
+      content: normalizeText(node.message.content) || '',
       createTime: node.message.create_time || Date.now() / 1000,
       parent: node.parent || null,
       children: node.children || [],

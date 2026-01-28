@@ -44,6 +44,37 @@ function setupMessageListener() {
       return true;
     }
 
+    // Sidepanel 手动刷新：触发重新抓取 API + 重新解析 mapping
+    if (message.type === MESSAGE_TYPES.REFRESH_DATA) {
+      (async () => {
+        try {
+          // 优先使用 payload 里的 conversationId（sidepanel 从 tab.url 提取）
+          const conversationId = message.payload?.conversationId || extractConversationId();
+          if (!conversationId) {
+            sendResponse({ success: false, error: 'No conversationId' });
+            return;
+          }
+
+          log('info', 'Content', `Manual refresh requested for conversation: ${conversationId}`);
+
+          // token 可能尚未加载（sidepanel 很快点刷新时）
+          const tokenLoaded = await loadToken();
+          if (!tokenLoaded || !hasToken()) {
+            sendResponse({ success: false, error: 'No valid token configured' });
+            return;
+          }
+
+          await fetchAndProcessConversation(conversationId);
+          sendResponse({ success: true });
+        } catch (err) {
+          log('error', 'Content', 'Manual refresh failed:', err);
+          sendResponse({ success: false, error: err.message || 'Refresh failed' });
+        }
+      })();
+
+      return true;
+    }
+
     return false;
   });
 

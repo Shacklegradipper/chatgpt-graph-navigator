@@ -48,7 +48,6 @@ function GraphContent({
   const { fitView, setCenter } = useReactFlow();
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  const prevDataRef = useRef(null);
 
   // 当容器高度变化时，重新适应视图
   useEffect(() => {
@@ -63,10 +62,10 @@ function GraphContent({
   useEffect(() => {
     if (!data || !data.rounds) return;
 
-    // 检查数据是否真的变化了
-    const dataKey = `${data.id}-${data.rounds.length}`;
-    if (prevDataRef.current === dataKey) return;
-    prevDataRef.current = dataKey;
+    // 注意：不要用 rounds.length 做“是否变化”的判断。
+    // 1) 分支结构变化时 rounds 数量可能不变，但 parentRoundId 会变
+    // 2) 消息内容更新时 rounds 数量可能不变
+    // 3) refresh 时需要强制重新 layout
 
     console.log('[Graph] Building graph data...', data.rounds.length, 'rounds');
     console.log('[Graph] Sample round data:', data.rounds[0]);

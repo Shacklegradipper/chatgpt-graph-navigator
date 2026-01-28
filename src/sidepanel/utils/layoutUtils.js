@@ -8,7 +8,9 @@ import dagre from 'dagre';
  * 节点尺寸配置
  */
 const NODE_WIDTH = 220;
-const NODE_HEIGHT = 100;
+// 节点实际高度会随“显示更多”略有变化；dagre 使用固定高度做布局计算。
+// 这里给一个相对保守的高度，避免 expanded 状态节点互相重叠。
+const NODE_HEIGHT = 140;
 
 /**
  * 节点颜色配置（与 RoundNode 保持一致）
@@ -30,139 +32,115 @@ export function buildGraphData(rounds) {
     return { nodes: [], edges: [] };
   }
 
+  // --- helpers ---
+  const normalizeText = (value) => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (Array.isArray(value)) return value.map(normalizeText).join('');
+    if (typeof value === 'object') {
+      // ChatGPT API: { content_type: 'text', parts: [...] }
+      if (Array.isArray(value.parts)) return value.parts.map(normalizeText).join('');
+      // some structures might use "text"
+      if (typeof value.text === 'string') return value.text;
+    }
+    try {
+      return String(value);
+    } catch {
+      return '';
+    }
+  };
+
   const nodes = [];
   const edges = [];
-  const nodeMap = new Map();
+  const nodeByRoundId = new Map();
 
-  // 第一遍：创建所有节点
+  // 1) Create all nodes (use round.id as the ReactFlow node id to keep parent links stable)
   rounds.forEach((round, index) => {
-    const nodeId = `round-${round.roundNumber || index + 1}`;
+    const nodeId = String(round.id || `round_${round.roundNumber || index + 1}`);
 
-    // 提取 User 和 Assistant 消息内容
-    // 支持多种数据结构：
-    // 1. round.userMessage / round.assistantMessage (来自 branch-extractor)
-    // 2. round.messages 数组
-    // 3. round.userContent / round.assistantContent (直接字段)
+    // Extract message text (support multiple data shapes)
     let userContent = '';
     let assistantContent = '';
     let lastMessageId = '';
 
     if (round.userMessage) {
-      // 结构1: userMessage 对象
-      userContent = round.userMessage.content || '';
-      lastMessageId = round.userMessage.id;
+      userContent = normalizeText(round.userMessage.content);
+      lastMessageId = round.userMessage.id || '';
     } else if (round.messages) {
-      // 结构2: messages 数组
       const userMsg = round.messages.find(m => m.role === 'user');
-      userContent = userMsg?.content || '';
+      userContent = normalizeText(userMsg?.content);
       lastMessageId = userMsg?.id || '';
     } else {
-      // 结构3: 直接字段
-      userContent = round.userContent || '';
+      userContent = normalizeText(round.userContent);
     }
 
     if (round.assistantMessage) {
-      assistantContent = round.assistantMessage.content || '';
+      assistantContent = normalizeText(round.assistantMessage.content);
       lastMessageId = round.assistantMessage.id || lastMessageId;
     } else if (round.messages) {
       const assistantMsg = round.messages.find(m => m.role === 'assistant');
-      assistantContent = assistantMsg?.content || '';
+      assistantContent = normalizeText(assistantMsg?.content);
       lastMessageId = assistantMsg?.id || lastMessageId;
     } else {
-      assistantContent = round.assistantContent || '';
+      assistantContent = normalizeText(round.assistantContent);
     }
 
-    // 兜底：使用 round 自身的 ID
+    // fallback for scrolling
     if (!lastMessageId) {
       lastMessageId = round.lastMessageId || round.assistantMessageId || round.userMessageId || round.id;
     }
 
-    // 计算层级（基于深度或索引）
-    const level = round.depth !== undefined ? round.depth : Math.min(index, 3);
+    // level (prefer depth)
+    const level = Number.isFinite(round.depth) ? round.depth : Math.min(index, 3);
 
     const nodeData = {
       id: nodeId,
       type: 'round',
       data: {
         roundNumber: round.roundNumber || index + 1,
-        userContent: userContent,
-        assistantContent: assistantContent,
-        lastMessageId: lastMessageId,
-        level: level,
+        userContent,
+        assistantContent,
+        lastMessageId,
+        level,
         color: LEVEL_COLORS[level % LEVEL_COLORS.length],
         hasChildren: false,
         branchCount: 1,
         raw: round
       },
-      position: { x: 0, y: 0 } // 将由 dagre 计算
+      position: { x: 0, y: 0 }
     };
 
     nodes.push(nodeData);
-    nodeMap.set(round.roundNumber || index + 1, nodeData);
+    nodeByRoundId.set(nodeId, nodeData);
   });
 
-  // 第二遍：创建边（基于 parentRoundId 或相邻关系）
-  for (let i = 0; i < rounds.length; i++) {
-    const currRound = rounds[i];
-    const currRoundNum = currRound.roundNumber || i + 1;
-    const targetId = `round-${currRoundNum}`;
+  // 2) Create edges (prefer parentRoundId; DO NOT fall back to "previous" which breaks branching)
+  rounds.forEach((round, index) => {
+    const targetId = String(round.id || `round_${round.roundNumber || index + 1}`);
+    const parentId = round.parentRoundId ? String(round.parentRoundId) : null;
 
-    // 优先使用 parentRoundId 建立连接
-    if (currRound.parentRoundId) {
-      // 从 parentRoundId 提取 roundNumber (格式: round_xxx 或直接数字)
-      const parentIdMatch = String(currRound.parentRoundId).match(/round[-_]?(\d+)/i);
-      const parentRoundNum = parentIdMatch ? parseInt(parentIdMatch[1]) : null;
+    if (!parentId) return;
+    if (!nodeByRoundId.has(parentId) || !nodeByRoundId.has(targetId)) return;
 
-      if (parentRoundNum && nodeMap.has(parentRoundNum)) {
-        const sourceId = `round-${parentRoundNum}`;
-        const sourceNode = nodeMap.get(parentRoundNum);
-        const edgeColor = sourceNode?.data?.color || LEVEL_COLORS[0];
+    const sourceNode = nodeByRoundId.get(parentId);
+    const edgeColor = sourceNode?.data?.color || LEVEL_COLORS[0];
 
-        edges.push({
-          id: `edge-${sourceId}-${targetId}`,
-          source: sourceId,
-          target: targetId,
-          type: 'smoothstep',
-          animated: false,
-          style: {
-            stroke: edgeColor,
-            strokeWidth: 2
-          }
-        });
-
-        if (sourceNode) {
-          sourceNode.data.hasChildren = true;
-        }
-        continue;
+    edges.push({
+      id: `edge-${parentId}-${targetId}`,
+      source: parentId,
+      target: targetId,
+      type: 'smoothstep',
+      animated: false,
+      style: {
+        stroke: edgeColor,
+        strokeWidth: 2
       }
+    });
+
+    if (sourceNode) {
+      sourceNode.data.hasChildren = true;
     }
-
-    // 没有 parentRoundId 时，连接到前一个节点
-    if (i > 0) {
-      const prevRound = rounds[i - 1];
-      const prevRoundNum = prevRound.roundNumber || i;
-      const sourceId = `round-${prevRoundNum}`;
-
-      const sourceNode = nodeMap.get(prevRoundNum);
-      const edgeColor = sourceNode?.data?.color || LEVEL_COLORS[0];
-
-      edges.push({
-        id: `edge-${sourceId}-${targetId}`,
-        source: sourceId,
-        target: targetId,
-        type: 'smoothstep',
-        animated: false,
-        style: {
-          stroke: edgeColor,
-          strokeWidth: 2
-        }
-      });
-
-      if (sourceNode) {
-        sourceNode.data.hasChildren = true;
-      }
-    }
-  }
+  });
 
   // 处理分支（如果存在）
   // 查找有多个子节点的节点

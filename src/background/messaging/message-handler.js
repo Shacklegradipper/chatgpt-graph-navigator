@@ -169,11 +169,15 @@ async function handleGetConversation(payload) {
   }
 
   // 获取相关数据
-  const nodes = await db.getNodes(conversationId);
+  const [nodes, rounds] = await Promise.all([
+    db.getNodes(conversationId),
+    db.getRounds(conversationId)
+  ]);
 
   return {
     conversation,
-    nodes
+    nodes,
+    rounds
   };
 }
 
@@ -184,7 +188,12 @@ async function handleGetConversation(payload) {
 async function handleGetAllConversations() {
   console.log('[Background] Getting all conversations');
 
-  const conversations = await db.getAllConversations();
+  let conversations = await db.getAllConversations();
+
+  // 默认按更新时间倒序（更符合“当前/最新对话”直觉）
+  conversations = conversations
+    .slice()
+    .sort((a, b) => (b.updateTime || 0) - (a.updateTime || 0));
 
   // 为每个对话获取完整数据（包括 rounds）
   const fullConversations = await Promise.all(

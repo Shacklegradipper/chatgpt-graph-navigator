@@ -81,91 +81,128 @@ export function extractBranches(nodes) {
 export function buildRounds(nodes) {
   log('info', 'BranchExtractor', 'Building rounds...');
 
-  const rounds = [];
+  if (!nodes || nodes.length === 0) {
+    return [];
+  }
+
   const nodeMap = buildNodeMap(nodes);
 
-  // 找到所有用户消息
-  const userNodes = nodes.filter(node => node.role === 'user');
+  // 只基于用户消息创建 Round（一个 Round = user + (可选) assistant）
+  // ⚠️ 注意：mapping 的遍历顺序不稳定，因此这里必须显式排序，
+  // 否则 parentRoundId / depth 会在不同运行间漂移。
+  const userNodes = nodes
+    .filter(node => node.role === 'user')
+    .slice()
+    .sort((a, b) => (a.createTime || 0) - (b.createTime || 0));
 
-  let roundNumber = 0;
-
-  for (const userNode of userNodes) {
-    roundNumber++;
-
-    // 找到对应的 assistant 回复
-    const assistantNode = userNode.children
+  // 第一遍：先创建所有 rounds（不依赖 rounds 数组的顺序）
+  const rounds = userNodes.map((userNode, index) => {
+    // 找到对应的 assistant 回复：优先取 user 的子节点里第一个 assistant
+    const assistantNode = (userNode.children || [])
       .map(childId => nodeMap.get(childId))
-      .filter(child => child && child.role === 'assistant')[0];
+      .filter(child => child && child.role === 'assistant')[0] || null;
 
-    // 找到父 Round
-    const parentRoundId = findParentRound(userNode, nodeMap, rounds);
-
-    // 计算深度（基于父 round 的深度）
-    const parentRound = rounds.find(r => r.id === parentRoundId);
-    const depth = parentRound ? parentRound.depth + 1 : 0;
-
-    const round = {
+    return {
+      // 用 user message id 作为 round id 的后缀，保证跨更新稳定 & 可追踪
       id: `round_${userNode.id}`,
       conversationId: userNode.conversationId,
-      roundNumber: roundNumber,
-      depth: depth,
-      // 包含完整的消息对象
+      roundNumber: index + 1,
+      depth: 0, // 第二遍计算
+
+      // 完整消息对象（便于 sidepanel 直接展示）
       userMessage: {
         id: userNode.id,
         role: 'user',
-        content: userNode.content,
+        content: userNode.content || '',
         createTime: userNode.createTime
       },
       assistantMessage: assistantNode ? {
         id: assistantNode.id,
         role: 'assistant',
-        content: assistantNode.content,
+        content: assistantNode.content || '',
         createTime: assistantNode.createTime
       } : null,
-      // 保留 ID 引用
+
+      // 保留 ID 引用（便于通过 nodes 反查/补全）
       userMessageId: userNode.id,
       assistantMessageId: assistantNode ? assistantNode.id : null,
-      parentRoundId: parentRoundId,
+
+      // 第二遍计算
+      parentRoundId: null,
+
       createTime: userNode.createTime
     };
+  });
 
-    rounds.push(round);
+  // 建立辅助索引：messageId -> roundId
+  const userToRoundId = new Map();
+  const assistantToRoundId = new Map();
+  const roundById = new Map();
+
+  rounds.forEach(r => {
+    roundById.set(r.id, r);
+    if (r.userMessageId) userToRoundId.set(r.userMessageId, r.id);
+    if (r.assistantMessageId) assistantToRoundId.set(r.assistantMessageId, r.id);
+  });
+
+  // 第二遍：计算 parentRoundId（不依赖 rounds 的顺序）
+  for (const round of rounds) {
+    const userNode = nodeMap.get(round.userMessageId);
+    if (!userNode || !userNode.parent) {
+      round.parentRoundId = null;
+      continue;
+    }
+
+    const parentNode = nodeMap.get(userNode.parent);
+    if (!parentNode) {
+      // parent 可能是 system/client-created-root（parseMapping 会跳过），属于根
+      round.parentRoundId = null;
+      continue;
+    }
+
+    if (parentNode.role === 'assistant') {
+      round.parentRoundId = assistantToRoundId.get(parentNode.id) || null;
+    } else if (parentNode.role === 'user') {
+      round.parentRoundId = userToRoundId.get(parentNode.id) || null;
+    } else {
+      round.parentRoundId = null;
+    }
   }
+
+  // 第三遍：计算 depth（memoized DFS，保证分支正确）
+  const depthMemo = new Map();
+  const visiting = new Set();
+
+  const computeDepth = (roundId) => {
+    if (!roundId) return 0;
+    if (depthMemo.has(roundId)) return depthMemo.get(roundId);
+    if (visiting.has(roundId)) {
+      // 理论上不应出现环，出现则兜底为 0
+      return 0;
+    }
+
+    visiting.add(roundId);
+
+    const r = roundById.get(roundId);
+    if (!r || !r.parentRoundId) {
+      depthMemo.set(roundId, 0);
+      visiting.delete(roundId);
+      return 0;
+    }
+
+    const d = computeDepth(r.parentRoundId) + 1;
+    depthMemo.set(roundId, d);
+    visiting.delete(roundId);
+    return d;
+  };
+
+  rounds.forEach(r => {
+    r.depth = computeDepth(r.id);
+  });
 
   log('info', 'BranchExtractor', `Built ${rounds.length} rounds`);
 
   return rounds;
-}
-
-/**
- * 查找父 Round
- * @param {ParsedNode} userNode - 用户节点
- * @param {Map<string, ParsedNode>} nodeMap - 节点映射
- * @param {Round[]} rounds - 已有的 rounds
- * @returns {string|null} 父 Round ID
- */
-function findParentRound(userNode, nodeMap, rounds) {
-  if (!userNode.parent) {
-    return null;
-  }
-
-  // 父节点可能是 assistant 或 user
-  const parentNode = nodeMap.get(userNode.parent);
-  if (!parentNode) {
-    return null;
-  }
-
-  if (parentNode.role === 'assistant') {
-    // 如果父节点是 assistant，找包含它的 round
-    const parentRound = rounds.find(r => r.assistantMessageId === parentNode.id);
-    return parentRound ? parentRound.id : null;
-  } else if (parentNode.role === 'user') {
-    // 如果父节点是 user，找对应的 round
-    const parentRound = rounds.find(r => r.userMessageId === parentNode.id);
-    return parentRound ? parentRound.id : null;
-  }
-
-  return null;
 }
 
 /**

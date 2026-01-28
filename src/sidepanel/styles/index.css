@@ -261,6 +261,12 @@ html, body {
   line-height: 1.4;
   color: #334155;
   word-break: break-word;
+
+  /* 防止节点因为文本过长而无限变高（dagre 使用固定高度计算布局） */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 
 /* 收起状态 */
