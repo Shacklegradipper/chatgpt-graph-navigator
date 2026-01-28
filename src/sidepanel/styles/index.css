@@ -81,7 +81,27 @@ html, body {
 
 .header-right {
   display: flex;
+  align-items: center;
   gap: 8px;
+}
+
+.header-stats {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #64748b;
+  padding: 4px 8px;
+  background: #f1f5f9;
+  border-radius: 6px;
+}
+
+.stat-item {
+  white-space: nowrap;
+}
+
+.stat-item.branch {
+  color: #16a34a;
 }
 
 .refresh-btn {
@@ -368,11 +388,153 @@ html, body {
   background: #2563eb;
 }
 
+/* ==================== QA 节点样式 ==================== */
+.qa-node {
+  min-width: 220px;
+  max-width: 240px;
+  background: white;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  position: relative;
+}
+
+.qa-node:hover,
+.qa-node.hovered {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.qa-node.selected {
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.3);
+}
+
+/* 问题节点 - 蓝色系 */
+.qa-node.question {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.qa-node.question.on-path {
+  background: #bfdbfe;
+  border-color: #3b82f6;
+}
+
+/* 回答节点 - 绿色系 */
+.qa-node.answer {
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.qa-node.answer.on-path {
+  background: #bbf7d0;
+  border-color: #22c55e;
+}
+
+/* QA 节点头部 */
+.qa-node-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.qa-node-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.qa-node-label {
+  font-weight: 600;
+  font-size: 11px;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.qa-node-branch-count {
+  margin-left: auto;
+  font-size: 10px;
+  color: #64748b;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+.qa-node-expand-btn {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: bold;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  margin-left: 4px;
+}
+
+.qa-node-expand-btn:hover {
+  background: rgba(0, 0, 0, 0.12);
+  color: #334155;
+}
+
+/* QA 节点内容 */
+.qa-node-content {
+  min-height: 20px;
+}
+
+.qa-node-text {
+  font-size: 11px;
+  line-height: 1.45;
+  color: #334155;
+  word-break: break-word;
+  margin: 0;
+
+  /* 限制行数防止节点过高 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.qa-node-empty {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* 选中路径指示器 */
+.qa-node-path-indicator {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: linear-gradient(180deg, #3b82f6 0%, #22c55e 100%);
+  border-radius: 0 2px 2px 0;
+}
+
 /* ==================== 响应式调整 ==================== */
 @media (max-width: 400px) {
   .round-node {
     min-width: 160px;
     max-width: 180px;
+    font-size: 11px;
+  }
+
+  .qa-node {
+    min-width: 180px;
+    max-width: 200px;
     font-size: 11px;
   }
 

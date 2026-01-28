@@ -3,7 +3,7 @@
  */
 import React from 'react';
 
-function Header({ title, conversationTitle, onRefresh, isLoading }) {
+function Header({ title, conversationTitle, onRefresh, isLoading, stats }) {
   return (
     <header className="header">
       <div className="header-left">
@@ -20,6 +20,15 @@ function Header({ title, conversationTitle, onRefresh, isLoading }) {
         )}
       </div>
       <div className="header-right">
+        {stats && (
+          <div className="header-stats" title={`Q: ${stats.totalQuestions}, A: ${stats.totalAnswers}, Branches: ${stats.totalBranchPoints}`}>
+            <span className="stat-item">Q:{stats.totalQuestions}</span>
+            <span className="stat-item">A:{stats.totalAnswers}</span>
+            {stats.totalBranchPoints > 0 && (
+              <span className="stat-item branch">🌿{stats.totalBranchPoints}</span>
+            )}
+          </div>
+        )}
         <button
           className="refresh-btn"
           onClick={onRefresh}
