@@ -23,6 +23,7 @@ import { createMessageObserver } from './observers/message-observer.js';
 import { conversationState } from './state/conversation-state.js';
 import { navigateToMessage, getCurrentDisplayedPath } from './utils/branch-navigator.js';
 import { initCollapseManager, setupSettingsListener } from './collapse/collapse-manager.js';
+import { toggleFloatingPanel, toggleClickThrough, toggleLock } from './ui/floating-panel.js';
 
 // 全局观察器实例
 let urlObserver = null;
@@ -51,6 +52,14 @@ function setupMessageListener() {
         sendResponse({ success: false, error: 'No messageId provided' });
       }
       return true; // 保持消息通道打开
+    }
+
+    // Popup: toggle floating panel
+    if (message.type === MESSAGE_TYPES.TOGGLE_FLOATING_PANEL) {
+      toggleFloatingPanel()
+        .then(opened => sendResponse({ success: true, opened }))
+        .catch(err => sendResponse({ success: false, error: err?.message || 'Toggle failed' }));
+      return true;
     }
 
     // Sidepanel 手动刷新：触发重新抓取 API + 重新解析 mapping
@@ -84,10 +93,52 @@ function setupMessageListener() {
       return true;
     }
 
+    if (message.type === MESSAGE_TYPES.UPDATE_FLOATING_PANEL_STATE) {
+      const action = message.payload?.action;
+      if (action === 'toggleClickThrough') {
+        toggleClickThrough().then(() => sendResponse({ success: true })).catch(err => sendResponse({ success: false, error: err?.message || String(err) }));
+        return true;
+      }
+      if (action === 'toggleLock') {
+        toggleLock().then(() => sendResponse({ success: true })).catch(err => sendResponse({ success: false, error: err?.message || String(err) }));
+        return true;
+      }
+    }
+
     return false;
   });
 
   log('info', 'Content', 'Message listener set up for sidepanel commands');
+}
+
+/**
+ * Keyboard shortcuts
+ * - Alt+Shift+G: toggle floating graph window
+ * - Alt+Shift+T: toggle click-through (when floating window exists)
+ * - Alt+Shift+L: lock/unlock floating window (when floating window exists)
+ */
+function setupFloatingHotkeys() {
+  const isTypingTarget = (el) => {
+    if (!el) return false;
+    const tag = (el.tagName || '').toLowerCase();
+    return tag === 'input' || tag === 'textarea' || el.isContentEditable;
+  };
+
+  window.addEventListener('keydown', (e) => {
+    if (isTypingTarget(e.target)) return;
+    if (!e.altKey || !e.shiftKey) return;
+
+    if (e.code === 'KeyG') {
+      e.preventDefault();
+      toggleFloatingPanel();
+    } else if (e.code === 'KeyT') {
+      e.preventDefault();
+      toggleClickThrough();
+    } else if (e.code === 'KeyL') {
+      e.preventDefault();
+      toggleLock();
+    }
+  }, { capture: true });
 }
 
 /**
@@ -239,6 +290,9 @@ async function main() {
   // 设置消息监听器（在最早期就设置，以便接收来自 sidepanel 的消息）
   setupMessageListener();
 
+  // Floating window hotkeys
+  setupFloatingHotkeys();
+  setupFloatingHotkeys();
   // 设置折叠设置监听器
   setupSettingsListener();
 

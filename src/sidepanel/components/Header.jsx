@@ -3,7 +3,15 @@
  */
 import React from 'react';
 
-function Header({ title, conversationTitle, onRefresh, isLoading, stats }) {
+function Header({
+  title,
+  conversationTitle,
+  onRefresh,
+  isLoading,
+  stats,
+  viewMode = 'graph',
+  onViewModeChange
+}) {
   return (
     <header className="header">
       <div className="header-left">
@@ -29,6 +37,26 @@ function Header({ title, conversationTitle, onRefresh, isLoading, stats }) {
             )}
           </div>
         )}
+        <div className="view-toggle" role="tablist" aria-label="View mode">
+          <button
+            className={'view-toggle-btn' + (viewMode === 'graph' ? ' active' : '')}
+            onClick={() => onViewModeChange?.('graph')}
+            title="Mind map view"
+            aria-label="Mind map view"
+            type="button"
+          >
+            🗺️
+          </button>
+          <button
+            className={'view-toggle-btn' + (viewMode === 'tree' ? ' active' : '')}
+            onClick={() => onViewModeChange?.('tree')}
+            title="Git tree view"
+            aria-label="Git tree view"
+            type="button"
+          >
+            🌿
+          </button>
+        </div>
         <button
           className="refresh-btn"
           onClick={onRefresh}

@@ -413,5 +413,8 @@
   },
   "expandBtn": {
     "message": "Expand"
+  },
+  "openFloatingBtn": {
+    "message": "Floating Window"
   }
 }

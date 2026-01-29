@@ -4,6 +4,7 @@
 
 import { initI18n, i18n, SUPPORTED_LOCALES, getUserLocale, setUserLocale } from '../shared/i18n.js';
 import { STORAGE_KEYS, DEFAULT_COLLAPSE_SETTINGS } from '../shared/constants.js';
+import { MESSAGE_TYPES } from '../shared/constants.js';
 
 // 折叠设置
 let collapseSettings = { ...DEFAULT_COLLAPSE_SETTINGS };
@@ -298,6 +299,11 @@ async function loadStatusContent() {
           📊 ${i18n('openGraphBtn') || 'Open Graph View'}
         </button>
       </div>
+      <div class="actions" style="margin-bottom: 8px;">
+        <button class="secondary" id="toggle-floating-btn" style="flex: 1;">
+          🪟 ${i18n('openFloatingBtn') || 'Floating Window'}
+        </button>
+      </div>
       <div class="actions">
         <button class="secondary" id="update-btn">
           ${tokenExpired ? i18n('updateTokenBtn') : i18n('changeTokenBtn')}
@@ -333,6 +339,7 @@ async function loadStatusContent() {
 
     // 绑定事件
     const openSidePanelBtn = document.getElementById('open-sidepanel-btn');
+    const toggleFloatingBtn = document.getElementById('toggle-floating-btn');
     const updateBtn = document.getElementById('update-btn');
     const clearBtn = document.getElementById('clear-btn');
 
@@ -350,6 +357,20 @@ async function loadStatusContent() {
         } catch (error) {
           console.error('Failed to open side panel:', error);
           alert('Failed to open side panel: ' + error.message);
+        }
+      });
+    }
+
+    if (toggleFloatingBtn) {
+      toggleFloatingBtn.addEventListener('click', async () => {
+        try {
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (!tab?.id) return;
+          await chrome.tabs.sendMessage(tab.id, { type: MESSAGE_TYPES.TOGGLE_FLOATING_PANEL });
+          window.close();
+        } catch (error) {
+          console.error('Failed to toggle floating panel:', error);
+          alert('Failed to toggle floating window. Please open ChatGPT first.');
         }
       });
     }

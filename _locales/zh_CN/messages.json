@@ -413,5 +413,8 @@
   },
   "expandBtn": {
     "message": "展开"
+  },
+  "openFloatingBtn": {
+    "message": "悬浮窗"
   }
 }

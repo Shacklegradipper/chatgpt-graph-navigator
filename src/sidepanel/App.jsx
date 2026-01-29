@@ -1,14 +1,24 @@
 /**
  * Side Panel 主应用
  */
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import ConversationGraph from './components/ConversationGraph';
+import GitTreeView from './components/GitTreeView';
 import Header from './components/Header';
 import { useConversationData } from './hooks/useConversationData';
 import { useQATree, useBranchChangeListener } from './hooks/useQATree';
 import { MESSAGE_TYPES } from '../shared/constants.js';
 
+const IS_EMBEDDED = (() => {
+  try {
+    return new URLSearchParams(window.location.search).get('embedded') === '1';
+  } catch {
+    return false;
+  }
+})();
+
 function App() {
+  const [viewMode, setViewMode] = useState('graph');
   const {
     conversationData,
     isLoading,
@@ -17,6 +27,69 @@ function App() {
     currentNodeId,
     setCurrentNodeId
   } = useConversationData();
+
+  // Embedded mode: allow the parent (floating panel) to control view mode / refresh.
+  useEffect(() => {
+    if (!IS_EMBEDDED) return;
+
+    const handler = (event) => {
+      const data = event?.data;
+      if (!data || typeof data !== 'object') return;
+      const { type, payload } = data;
+      if (type === 'CG_SET_VIEW_MODE' && payload?.mode) {
+        setViewMode(String(payload.mode));
+      } else if (type === 'CG_REFRESH') {
+        refreshData();
+      } else if (type === 'CG_REQUEST_VIEW_MODE') {
+        try {
+          event.source?.postMessage({ type: 'CG_VIEW_MODE', payload: { mode: viewMode } }, '*');
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    window.addEventListener('message', handler);
+    // Tell parent we are ready.
+    try {
+      window.parent?.postMessage({ type: 'CG_READY' }, '*');
+      window.parent?.postMessage({ type: 'CG_VIEW_MODE', payload: { mode: viewMode } }, '*');
+    } catch {
+      // ignore
+    }
+
+    return () => window.removeEventListener('message', handler);
+  }, [viewMode, refreshData]);
+
+  // Notify parent when view mode changes
+  useEffect(() => {
+    if (!IS_EMBEDDED) return;
+    try {
+      window.parent?.postMessage({ type: 'CG_VIEW_MODE', payload: { mode: viewMode } }, '*');
+    } catch {
+      // ignore
+    }
+  }, [viewMode]);
+
+  // Persist view mode
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await chrome.storage.local.get(['sidepanelViewMode']);
+        if (res.sidepanelViewMode) setViewMode(res.sidepanelViewMode);
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    try {
+      chrome.storage.local.set({ sidepanelViewMode: viewMode });
+    } catch {
+      // ignore
+    }
+  }, [viewMode]);
 
   // 构建 QA 树
   const {
@@ -102,8 +175,8 @@ function App() {
     </div>
   );
 
-  // 渲染图谱
-  const renderGraph = () => {
+  // 渲染内容（两种模式切换）
+  const renderContent = () => {
     if (!isTreeReady) {
       return (
         <div className="empty-state">
@@ -111,6 +184,17 @@ function App() {
           <h2>Building Tree...</h2>
           <p>Please wait while the conversation tree is being constructed</p>
         </div>
+      );
+    }
+
+    if (viewMode === 'tree') {
+      return (
+        <GitTreeView
+          qaTree={tree}
+          selectedPath={selectedPath}
+          currentNodeId={currentNodeId}
+          onNodeClick={handleNodeClick}
+        />
       );
     }
 
@@ -127,19 +211,23 @@ function App() {
   };
 
   return (
-    <div className="app">
-      <Header
-        title="ChatGPT Graph"
-        conversationTitle={conversationData?.title}
-        onRefresh={refreshData}
-        isLoading={isLoading}
-        stats={treeStats}
-      />
+    <div className={'app' + (IS_EMBEDDED ? ' embedded' : '')}>
+      {!IS_EMBEDDED && (
+        <Header
+          title="ChatGPT Graph"
+          conversationTitle={conversationData?.title}
+          onRefresh={refreshData}
+          isLoading={isLoading}
+          stats={treeStats}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+        />
+      )}
 
       <main className="main-content">
         {error ? renderError() :
           !conversationData ? renderEmptyState() :
-          renderGraph()}
+          renderContent()}
       </main>
     </div>
   );
