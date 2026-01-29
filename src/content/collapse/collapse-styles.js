@@ -113,10 +113,6 @@ export const COLLAPSE_STYLES = `
 .chatgpt-graph-collapse-btn svg {
   transition: transform 0.2s ease;
 }
-
-.chatgpt-graph-collapse-btn.collapsed svg {
-  transform: rotate(180deg);
-}
 `;
 
 /**
