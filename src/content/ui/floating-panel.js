@@ -68,8 +68,11 @@ const saveState = throttle(async (partial) => {
 }, 120);
 
 function ensureStyles() {
-  if (document.getElementById(STYLE_ID)) return;
-  const style = document.createElement('style');
+  // IMPORTANT: always update the style text so extension updates take effect
+  // without requiring a hard refresh. Stale CSS is a frequent cause of
+  // "overlap" regressions when the panel is re-injected.
+  const existing = document.getElementById(STYLE_ID);
+  const style = existing || document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
     #${PANEL_ID} {
@@ -137,7 +140,7 @@ function ensureStyles() {
       gap: var(--cg-gap, 6px);
       cursor: default;
       min-width: 0;
-      flex: 0 1 auto;
+      flex-shrink: 0;
     }
     #${PANEL_ID} .cg-bar-right {
       display: flex;
@@ -145,7 +148,7 @@ function ensureStyles() {
       gap: var(--cg-gap, 6px);
       cursor: default;
       min-width: 0;
-      flex: 0 1 auto;
+      flex-shrink: 0;
       margin-left: auto;
     }
 
@@ -198,9 +201,9 @@ function ensureStyles() {
     #${PANEL_ID}[data-cg-compact="4"] .cg-header .cg-opacity {
       display: none !important;
     }
-    #${PANEL_ID}[data-cg-compact="4"] .cg-header .cg-view-toggle {
-      display: none !important;
-    }
+
+    /* NOTE: Do NOT hide the view toggle in compact mode.
+       Users want Graph/Tree switching always visible, even at minimum size. */
 
     #${PANEL_ID} .cg-view-toggle {
       display: inline-flex;
@@ -264,14 +267,13 @@ function ensureStyles() {
       border-radius: 999px;
       background: rgba(255,255,255,.86);
       height: var(--cg-btn, 28px);
+      /* Allow the opacity control to shrink a bit before we start hiding things. */
       flex: 0 1 auto;
       min-width: 0;
     }
     #${PANEL_ID} .cg-opacity input[type="range"] {
-      flex: 0 1 var(--cg-slider, 70px);
       width: var(--cg-slider, 70px);
       min-width: 56px;
-      max-width: 100%;
       accent-color: #2563eb;
     }
 
@@ -438,7 +440,8 @@ function ensureStyles() {
     }
 
   `.trim();
-  document.documentElement.appendChild(style);
+
+  if (!existing) document.documentElement.appendChild(style);
 }
 
 function getPanelEl() {
@@ -711,68 +714,96 @@ function buildPanel(state, setState, getState) {
   // ------------------------------------------------------------
   let currentCompactLevel = 0;
   let compactUpdateScheduled = false;
-  const MAX_COMPACT_LEVEL = 4;
-  const OVERFLOW_EPS = 1; // tolerate 1px rounding
-  const HYSTERESIS_SLACK = 14; // px slack before allowing downgrade
-  let lastPanelWidth = 0;
+  const HYSTERESIS_SLACK = 14; // px slack required before allowing downgrade
+  const OVERFLOW_TOL = 1; // tolerate 1px rounding
+  const MIN_GROUP_GAP = 2; // px - avoid visual/actual overlap
 
-  const applyCompactLevel = (level) => {
-    const value = String(level);
-    if (panel.dataset.cgCompact !== value) {
-      panel.dataset.cgCompact = value;
-    }
+  const getHeaderMetrics = () => {
+    const headerEl = panel.querySelector('.cg-header');
+    if (!headerEl) return null;
+    const left = headerEl.querySelector('.cg-bar-left');
+    const right = headerEl.querySelector('.cg-bar-right');
+    return { headerEl, left, right };
   };
 
-  const getHeaderOverflow = (headerEl) => headerEl.scrollWidth - headerEl.clientWidth;
+  const isTooTight = (m) => {
+    if (!m) return false;
+    const { headerEl, left, right } = m;
+    const overflow = headerEl.scrollWidth - headerEl.clientWidth;
+    if (overflow > OVERFLOW_TOL) return true;
+    // Extra safety: detect near-overlap between left and right groups.
+    // This catches cases where scrollWidth isn't reliable due to layout quirks.
+    if (left && right) {
+      const lr = left.getBoundingClientRect();
+      const rr = right.getBoundingClientRect();
+      const gap = rr.left - lr.right;
+      if (gap < MIN_GROUP_GAP) return true;
+    }
+    return false;
+  };
+
+  const hasSlackForLevel = (testLevel, m) => {
+    if (!m) return false;
+    const { headerEl, left, right } = m;
+    // Must fit, and have extra slack so we don't bounce at the boundary.
+    const overflow = headerEl.scrollWidth - headerEl.clientWidth;
+    const slack = headerEl.clientWidth - headerEl.scrollWidth;
+    if (overflow > OVERFLOW_TOL) return false;
+    if (slack < HYSTERESIS_SLACK) return false;
+    if (left && right) {
+      const lr = left.getBoundingClientRect();
+      const rr = right.getBoundingClientRect();
+      const gap = rr.left - lr.right;
+      if (gap < MIN_GROUP_GAP + 6) return false;
+    }
+    return true;
+  };
+
+  const applyCompactLevel = (lv) => {
+    panel.dataset.cgCompact = String(lv);
+    currentCompactLevel = lv;
+  };
 
   const updateHeaderCompact = () => {
+    // If the header is hidden, no need to compute.
     if (panel.classList.contains('cg-controls-hidden')) {
-      if (currentCompactLevel !== 0) {
-        currentCompactLevel = 0;
-        applyCompactLevel(0);
-      }
+      applyCompactLevel(0);
       return;
     }
 
-    const headerEl = panel.querySelector('.cg-header');
-    if (!headerEl) return;
+    const m0 = getHeaderMetrics();
+    if (!m0) return;
 
-    let level = currentCompactLevel;
-    applyCompactLevel(level);
-    void headerEl.offsetWidth;
+    // Ensure current level is applied before measuring.
+    panel.dataset.cgCompact = String(currentCompactLevel);
+    void m0.headerEl.offsetWidth;
 
-    let overflow = getHeaderOverflow(headerEl);
-
-    if (overflow > OVERFLOW_EPS) {
-      while (level < MAX_COMPACT_LEVEL && overflow > OVERFLOW_EPS) {
-        level += 1;
-        applyCompactLevel(level);
-        void headerEl.offsetWidth;
-        overflow = getHeaderOverflow(headerEl);
-      }
-      if (level !== currentCompactLevel) {
-        currentCompactLevel = level;
-      }
-      applyCompactLevel(currentCompactLevel);
-      return;
+    // Tighten step-by-step until it fits or we hit max.
+    while (currentCompactLevel < 4) {
+      const m = getHeaderMetrics();
+      if (!isTooTight(m)) break;
+      applyCompactLevel(currentCompactLevel + 1);
+      void m.headerEl.offsetWidth;
     }
 
-    while (level > 0) {
-      const candidate = level - 1;
-      applyCompactLevel(candidate);
-      void headerEl.offsetWidth;
-      const slack = headerEl.clientWidth - headerEl.scrollWidth;
-      if (slack >= HYSTERESIS_SLACK) {
-        level = candidate;
+    // Relax step-by-step, but only if we have enough slack (hysteresis).
+    while (currentCompactLevel > 0) {
+      const test = currentCompactLevel - 1;
+      panel.dataset.cgCompact = String(test);
+      const m = getHeaderMetrics();
+      if (!m) {
+        panel.dataset.cgCompact = String(currentCompactLevel);
+        break;
+      }
+      void m.headerEl.offsetWidth;
+      if (hasSlackForLevel(test, m)) {
+        currentCompactLevel = test;
         continue;
       }
+      // Not enough slack: revert and stop.
+      panel.dataset.cgCompact = String(currentCompactLevel);
       break;
     }
-
-    if (level !== currentCompactLevel) {
-      currentCompactLevel = level;
-    }
-    applyCompactLevel(currentCompactLevel);
   };
 
   const scheduleCompactUpdate = () => {
@@ -785,10 +816,7 @@ function buildPanel(state, setState, getState) {
   };
 
   // ResizeObserver to track panel width changes
-  const panelResizeObserver = new ResizeObserver((entries) => {
-    const width = entries?.[0]?.contentRect?.width ?? 0;
-    if (Math.abs(width - lastPanelWidth) < 0.5) return;
-    lastPanelWidth = width;
+  const panelResizeObserver = new ResizeObserver(() => {
     scheduleCompactUpdate();
   });
   panelResizeObserver.observe(panel);

@@ -171,78 +171,128 @@ export default function GitTreeView({
   const toolbarRef = useRef(null);
   const compactUpdateScheduledRef = useRef(false);
   const currentCompactLevelRef = useRef(0);
-  const lastToolbarWidthRef = useRef(0);
 
-  // Overflow-driven responsive toolbar with hysteresis
-  const MAX_COMPACT_LEVEL = 3;
-  const OVERFLOW_EPS = 1;
-  const HYSTERESIS_SLACK = 12;
+  // Overflow-driven responsive toolbar with hysteresis.
+  // IMPORTANT: do NOT brute-force scan all levels each time (too much layout thrash).
+  // Instead, tighten/relax step-by-step from the current level, with overlap detection.
+  const HYSTERESIS_SLACK = 14;
+  const OVERFLOW_TOL = 1;
+  const MIN_GAP = 2;
 
-  const applyToolbarCompact = useCallback((level) => {
+  const getRow2Metrics = useCallback(() => {
     const toolbar = toolbarRef.current;
-    if (!toolbar) return;
-    const value = String(level);
-    if (toolbar.dataset.compact !== value) {
-      toolbar.dataset.compact = value;
+    if (!toolbar) return null;
+    const row2 = toolbar.querySelector('.git-toolbar-row2');
+    if (!row2) return null;
+    const search = row2.querySelector('.git-search');
+    const right = row2.querySelector('.git-toolbar-row2-right');
+    const font = right?.querySelector('.git-font-control');
+    const collapse = right?.querySelector('.git-collapse-btn');
+    return { toolbar, row2, search, right, font, collapse };
+  }, []);
+
+  const isTooTight = useCallback((m) => {
+    if (!m) return false;
+    const { row2, search, right, font, collapse } = m;
+    const overflow = row2.scrollWidth - row2.clientWidth;
+    if (overflow > OVERFLOW_TOL) return true;
+
+    // Detect near-overlap between the big left search area and right controls.
+    if (search && right) {
+      const sr = search.getBoundingClientRect();
+      const rr = right.getBoundingClientRect();
+      const gap = rr.left - sr.right;
+      if (gap < MIN_GAP) return true;
     }
+
+    // Detect near-overlap inside right controls (e.g. font slider vs collapse button in embedded mode).
+    if (font && collapse && font.getClientRects().length && collapse.getClientRects().length) {
+      const fr = font.getBoundingClientRect();
+      const cr = collapse.getBoundingClientRect();
+      const gap = cr.left - fr.right;
+      if (gap < MIN_GAP) return true;
+    }
+
+    return false;
+  }, []);
+
+  const hasSlackForLevel = useCallback((m) => {
+    if (!m) return false;
+    const { row2, search, right, font, collapse } = m;
+    const overflow = row2.scrollWidth - row2.clientWidth;
+    if (overflow > OVERFLOW_TOL) return false;
+    const slack = row2.clientWidth - row2.scrollWidth;
+    if (slack < HYSTERESIS_SLACK) return false;
+
+    if (search && right) {
+      const sr = search.getBoundingClientRect();
+      const rr = right.getBoundingClientRect();
+      const gap = rr.left - sr.right;
+      if (gap < MIN_GAP + 6) return false;
+    }
+
+    if (font && collapse && font.getClientRects().length && collapse.getClientRects().length) {
+      const fr = font.getBoundingClientRect();
+      const cr = collapse.getBoundingClientRect();
+      const gap = cr.left - fr.right;
+      if (gap < MIN_GAP + 6) return false;
+    }
+
+    return true;
   }, []);
 
   const updateToolbarCompact = useCallback(() => {
     const toolbar = toolbarRef.current;
     if (!toolbar) return;
 
-    const row =
-      toolbar.querySelector('.git-toolbar-row2') ||
-      toolbar.querySelector('.git-toolbar-row1');
-
-    if (!row) {
+    // If row2 is collapsed/hidden, keep level 0 (avoid jitter).
+    const m0 = getRow2Metrics();
+    if (!m0) {
       if (currentCompactLevelRef.current !== 0) {
         currentCompactLevelRef.current = 0;
         setCompactLevel(0);
       }
-      applyToolbarCompact(0);
+      toolbar.dataset.compact = '0';
       return;
     }
 
-    let level = currentCompactLevelRef.current;
-    applyToolbarCompact(level);
-    void row.offsetWidth;
+    let lv = currentCompactLevelRef.current || 0;
+    toolbar.dataset.compact = String(lv);
+    void m0.row2.offsetWidth;
 
-    let overflow = row.scrollWidth - row.clientWidth;
-
-    if (overflow > OVERFLOW_EPS) {
-      while (level < MAX_COMPACT_LEVEL && overflow > OVERFLOW_EPS) {
-        level += 1;
-        applyToolbarCompact(level);
-        void row.offsetWidth;
-        overflow = row.scrollWidth - row.clientWidth;
-      }
-      if (level !== currentCompactLevelRef.current) {
-        currentCompactLevelRef.current = level;
-        setCompactLevel(level);
-      }
-      applyToolbarCompact(level);
-      return;
+    // Tighten step-by-step until it fits or we hit max.
+    while (lv < 3) {
+      const m = getRow2Metrics();
+      if (!isTooTight(m)) break;
+      lv += 1;
+      toolbar.dataset.compact = String(lv);
+      void m.row2.offsetWidth;
     }
 
-    while (level > 0) {
-      const candidate = level - 1;
-      applyToolbarCompact(candidate);
-      void row.offsetWidth;
-      const slack = row.clientWidth - row.scrollWidth;
-      if (slack >= HYSTERESIS_SLACK) {
-        level = candidate;
+    // Relax step-by-step with hysteresis slack.
+    while (lv > 0) {
+      const test = lv - 1;
+      toolbar.dataset.compact = String(test);
+      const m = getRow2Metrics();
+      if (!m) {
+        toolbar.dataset.compact = String(lv);
+        break;
+      }
+      void m.row2.offsetWidth;
+      if (hasSlackForLevel(m) && !isTooTight(m)) {
+        lv = test;
         continue;
       }
+      toolbar.dataset.compact = String(lv);
       break;
     }
 
-    if (level !== currentCompactLevelRef.current) {
-      currentCompactLevelRef.current = level;
-      setCompactLevel(level);
+    if (lv !== currentCompactLevelRef.current) {
+      currentCompactLevelRef.current = lv;
+      setCompactLevel(lv);
     }
-    applyToolbarCompact(level);
-  }, [applyToolbarCompact]);
+    toolbar.dataset.compact = String(lv);
+  }, [getRow2Metrics, hasSlackForLevel, isTooTight]);
 
   const scheduleCompactUpdate = useCallback(() => {
     if (compactUpdateScheduledRef.current) return;
@@ -255,23 +305,21 @@ export default function GitTreeView({
 
   // ResizeObserver for responsive toolbar
   useEffect(() => {
-    const target = containerRef.current;
-    if (!target) return;
+    if (!toolbarRef.current) return;
 
-    const observer = new ResizeObserver((entries) => {
-      const width = entries?.[0]?.contentRect?.width ?? 0;
-      if (Math.abs(width - lastToolbarWidthRef.current) < 0.5) return;
-      lastToolbarWidthRef.current = width;
+    const observer = new ResizeObserver(() => {
       scheduleCompactUpdate();
     });
 
-    observer.observe(target);
+    observer.observe(toolbarRef.current);
     return () => observer.disconnect();
   }, [scheduleCompactUpdate]);
 
+  // Re-evaluate compaction when toolbar content changes but size may not (e.g. collapse button moves,
+  // embedded controls appear/disappear, loading state toggles).
   useEffect(() => {
     scheduleCompactUpdate();
-  }, [scheduleCompactUpdate, toolbarCollapsed, controlsHidden, searchQuery]);
+  }, [scheduleCompactUpdate, toolbarCollapsed, controlsHidden, showPanelControls, viewMode, isLoading]);
 
   // Embedded mode (floating window): allow parent to open/focus the search row.
   useEffect(() => {
@@ -806,13 +854,19 @@ export default function GitTreeView({
 
   const rootEl = renderRoot();
 
+  // Embedded (floating window): Row 1 is not rendered (the floating window already
+  // has its own header). If the search row is collapsed too, the toolbar container
+  // would otherwise become an empty white strip under the floating header.
+  const shouldRenderToolbar = showPanelControls || !toolbarCollapsed;
+
   return (
     <div
       className="git-tree"
       ref={containerRef}
       style={{ '--gitScale': String(fontScale) }}
     >
-      <div className="git-toolbar" ref={toolbarRef} data-compact={compactLevel}>
+      {shouldRenderToolbar && (
+        <div className="git-toolbar" ref={toolbarRef} data-compact={compactLevel}>
         {/* Row 1: sidepanel-only (merged header) */}
         {showPanelControls && (
           <div className="git-toolbar-row git-toolbar-row1">
@@ -893,7 +947,8 @@ export default function GitTreeView({
                 Compact mode: when width is tight, show filter + font size only
                 when the user hovers/focuses the search box.
               */}
-              <div className="git-secondary-pop" aria-label="Controls">
+              {!IS_EMBEDDED && (
+                <div className="git-secondary-pop" aria-label="Controls">
                 <div className="git-secondary-section" aria-label="Show nodes">
                   <div className="git-filter-toggle" role="tablist" aria-label="Show nodes">
                     <button
@@ -938,7 +993,8 @@ export default function GitTreeView({
                     />
                   </div>
                 </div>
-              </div>
+                </div>
+              )}
             </div>
 
             <div className="git-toolbar-row2-right" aria-label="Controls">
@@ -1038,7 +1094,8 @@ export default function GitTreeView({
             </div>
           </div>
         )}
-      </div>
+        </div>
+      )}
 
       {rootEl ? (
         rootEl
