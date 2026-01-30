@@ -221,21 +221,22 @@ export default function GitTreeView({
     const { row2, search, right, font, collapse } = m;
     const overflow = row2.scrollWidth - row2.clientWidth;
     if (overflow > OVERFLOW_TOL) return false;
-    const slack = row2.clientWidth - row2.scrollWidth;
-    if (slack < HYSTERESIS_SLACK) return false;
 
+    // NOTE: scrollWidth is clamped to at least clientWidth, so "clientWidth - scrollWidth"
+    // is almost always 0 and cannot be used to estimate available slack.
+    // Instead, use real geometry: require extra GAP between groups before relaxing.
     if (search && right) {
       const sr = search.getBoundingClientRect();
       const rr = right.getBoundingClientRect();
       const gap = rr.left - sr.right;
-      if (gap < MIN_GAP + 6) return false;
+      if (gap < MIN_GAP + HYSTERESIS_SLACK) return false;
     }
 
     if (font && collapse && font.getClientRects().length && collapse.getClientRects().length) {
       const fr = font.getBoundingClientRect();
       const cr = collapse.getBoundingClientRect();
       const gap = cr.left - fr.right;
-      if (gap < MIN_GAP + 6) return false;
+      if (gap < MIN_GAP + HYSTERESIS_SLACK) return false;
     }
 
     return true;
@@ -303,15 +304,20 @@ export default function GitTreeView({
     });
   }, [updateToolbarCompact]);
 
-  // ResizeObserver for responsive toolbar
+  // ResizeObserver for responsive toolbar.
+  // IMPORTANT: in embedded mode we sometimes unmount the toolbar container when the search row
+  // is collapsed (to avoid the empty strip). If we only observe `toolbarRef`, the observer
+  // might never be attached on the first open, and resize won't trigger compaction.
+  // Observing the always-present container fixes this.
   useEffect(() => {
-    if (!toolbarRef.current) return;
+    const target = containerRef.current;
+    if (!target) return;
 
     const observer = new ResizeObserver(() => {
       scheduleCompactUpdate();
     });
 
-    observer.observe(toolbarRef.current);
+    observer.observe(target);
     return () => observer.disconnect();
   }, [scheduleCompactUpdate]);
 

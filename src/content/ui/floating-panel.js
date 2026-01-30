@@ -747,14 +747,15 @@ function buildPanel(state, setState, getState) {
     const { headerEl, left, right } = m;
     // Must fit, and have extra slack so we don't bounce at the boundary.
     const overflow = headerEl.scrollWidth - headerEl.clientWidth;
-    const slack = headerEl.clientWidth - headerEl.scrollWidth;
     if (overflow > OVERFLOW_TOL) return false;
-    if (slack < HYSTERESIS_SLACK) return false;
+    // NOTE: scrollWidth is clamped to at least clientWidth, so "clientWidth - scrollWidth"
+    // is almost always 0 and cannot be used to estimate available slack.
+    // Instead, use real geometry: require extra GAP between groups before relaxing.
     if (left && right) {
       const lr = left.getBoundingClientRect();
       const rr = right.getBoundingClientRect();
       const gap = rr.left - lr.right;
-      if (gap < MIN_GROUP_GAP + 6) return false;
+      if (gap < MIN_GROUP_GAP + HYSTERESIS_SLACK) return false;
     }
     return true;
   };
