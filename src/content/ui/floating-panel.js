@@ -134,6 +134,8 @@ function ensureStyles() {
       background: rgba(255,255,255,.90);
       border-bottom: 1px solid rgba(15, 23, 42, .08);
       cursor: grab;
+      flex-wrap: nowrap;
+      white-space: nowrap;
     }
     #${PANEL_ID}.cg-locked .cg-header {
       cursor: default;
@@ -144,6 +146,50 @@ function ensureStyles() {
       align-items: center;
       gap: 6px;
       cursor: default;
+      min-width: 0;
+    }
+
+    /* ------------------------------------------------------------
+       Responsive header (1 line max)
+
+       Problem:
+       - When the floating window is resized narrow, right-aligned buttons can clip.
+
+       Strategy:
+       - Keep the header as a single row (no wrap)
+       - Shrink flexible controls first (sliders)
+       - If still overflowing, progressively hide low-priority controls
+         (opacity slider -> view toggle -> refresh) while keeping essentials.
+    ------------------------------------------------------------ */
+    #${PANEL_ID}[data-cg-compact="1"] .cg-header {
+      padding: 0 8px;
+      gap: 6px;
+    }
+    #${PANEL_ID}[data-cg-compact="1"] .cg-bar-left,
+    #${PANEL_ID}[data-cg-compact="1"] .cg-bar-right {
+      gap: 4px;
+    }
+    #${PANEL_ID}[data-cg-compact="1"] .cg-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+    }
+    #${PANEL_ID}[data-cg-compact="1"] .cg-view-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+    }
+    #${PANEL_ID}[data-cg-compact="1"] .cg-header .cg-opacity input[type="range"] {
+      width: 56px;
+    }
+    #${PANEL_ID}[data-cg-compact="2"] .cg-header .cg-opacity {
+      display: none;
+    }
+    #${PANEL_ID}[data-cg-compact="3"] .cg-header .cg-view-toggle {
+      display: none;
+    }
+    #${PANEL_ID}[data-cg-compact="4"] .cg-header .cg-bar-left [data-action="refresh"] {
+      display: none;
     }
 
     #${PANEL_ID} .cg-view-toggle {
@@ -231,6 +277,48 @@ function ensureStyles() {
         width: 56px;
       }
     }
+
+    /*
+      Responsive header fitting (no clipping):
+      The floating window top bar must stay a SINGLE line.
+      We progressively compact/hide low-priority controls when needed.
+    */
+    #${PANEL_ID}[data-cg-compact="1"] .cg-header {
+      padding: 0 8px;
+      gap: 6px;
+    }
+    #${PANEL_ID}[data-cg-compact="1"] .cg-bar-left,
+    #${PANEL_ID}[data-cg-compact="1"] .cg-bar-right {
+      gap: 4px;
+    }
+    #${PANEL_ID}[data-cg-compact="1"] .cg-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+    }
+    #${PANEL_ID}[data-cg-compact="1"] .cg-view-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+    }
+    #${PANEL_ID}[data-cg-compact="1"] .cg-header .cg-opacity input[type="range"] {
+      width: 56px;
+    }
+
+    /* Hide opacity slider first (still available inside 🧰 controls popover) */
+    #${PANEL_ID}[data-cg-compact="2"] .cg-header .cg-opacity {
+      display: none;
+    }
+
+    /* Then hide view toggle (still available inside popover) */
+    #${PANEL_ID}[data-cg-compact="3"] .cg-header .cg-view-toggle {
+      display: none;
+    }
+
+    /* Finally hide refresh (still available inside popover) */
+    #${PANEL_ID}[data-cg-compact="4"] .cg-header [data-action="refresh"] {
+      display: none;
+    }
     #${PANEL_ID} .cg-body {
       flex: 1 1 auto;
       min-height: 0;
@@ -290,7 +378,6 @@ function ensureStyles() {
       - Provides a draggable strip
       - Hosts the "search" (when needed) + "show toolbar" button
       - Avoids overlapping the embedded UI (unlike a floating handle)
-      - HIDDEN when tree search row is expanded (to avoid double bars)
     */
     #${PANEL_ID} .cg-mini-bar {
       height: 30px;
@@ -307,8 +394,7 @@ function ensureStyles() {
     #${PANEL_ID}.cg-locked .cg-mini-bar {
       cursor: default;
     }
-    /* Show mini bar only when controls are hidden AND tree search is collapsed (or not in tree mode) */
-    #${PANEL_ID}.cg-controls-hidden:not(.cg-tree-search-expanded) .cg-mini-bar {
+    #${PANEL_ID}.cg-controls-hidden .cg-mini-bar {
       display: flex;
     }
     #${PANEL_ID}.cg-through .cg-mini-bar {
@@ -530,6 +616,7 @@ function buildPanel(state, setState, getState) {
   panel.id = PANEL_ID;
   panel.setAttribute('role', 'dialog');
   panel.setAttribute('aria-label', 'ChatGPT Graph Floating Panel');
+  panel.dataset.cgCompact = '0';
 
   const header = document.createElement('div');
   header.className = 'cg-header';
@@ -564,8 +651,7 @@ function buildPanel(state, setState, getState) {
       <button class="cg-btn cg-mini-search" data-action="search" title="Search" aria-label="Search" style="display:none;">⌕</button>
     </div>
     <div class="cg-mini-right">
-      <button class="cg-btn" data-action="showToolbar" title="Show toolbar" aria-label="Show toolbar">☰</button>
-      <button class="cg-btn" data-action="close" title="Close">✕</button>
+      <button class="cg-btn" data-action="showToolbar" title="Show toolbar" aria-label="Show toolbar">▴</button>
     </div>
   `.trim();
 
@@ -664,6 +750,34 @@ function buildPanel(state, setState, getState) {
   let currentViewMode = 'graph';
   let treeToolbarCollapsed = false;
 
+  // ------------------------------------------------------------
+  // Header responsiveness (1-line max)
+  // ------------------------------------------------------------
+  const updateHeaderCompact = () => {
+    // If the header is hidden, no need to compute.
+    if (panel.classList.contains('cg-controls-hidden')) {
+      panel.dataset.cgCompact = '0';
+      return;
+    }
+
+    const headerEl = panel.querySelector('.cg-header');
+    if (!headerEl) return;
+
+    // Progressive compaction: apply the smallest level that makes the header fit.
+    const levels = ['0', '1', '2', '3', '4'];
+    let chosen = '4';
+    for (const lv of levels) {
+      panel.dataset.cgCompact = lv;
+      // Force layout flush
+      headerEl.getBoundingClientRect();
+      if (headerEl.scrollWidth <= headerEl.clientWidth + 1) {
+        chosen = lv;
+        break;
+      }
+    }
+    panel.dataset.cgCompact = chosen;
+  };
+
   const updateSearchButtons = (s = getState()) => {
     const effectiveHidden = !!s.controlsHidden || !!s.locked || !!s.clickThrough;
     const shouldShow = currentViewMode === 'tree' && !!treeToolbarCollapsed;
@@ -679,9 +793,7 @@ function buildPanel(state, setState, getState) {
   // Let applyState call back into this so visibility updates whenever controls are hidden/shown.
   panel.__cgAfterApplyState = (s) => {
     updateSearchButtons(s);
-    // Notify iframe about controls visibility state
-    const effectiveHidden = !!s.controlsHidden || !!s.locked || !!s.clickThrough;
-    postToIframe('CG_CONTROLS_STATE', { hidden: effectiveHidden });
+    updateHeaderCompact();
   };
 
   const setActiveViewMode = (mode) => {
@@ -689,18 +801,13 @@ function buildPanel(state, setState, getState) {
     panel.querySelectorAll('[data-action="view"]').forEach((btn) => {
       btn.classList.toggle('cg-active', btn.dataset.mode === currentViewMode);
     });
-    // Update tree-search-expanded class based on current view mode
-    panel.classList.toggle('cg-tree-search-expanded', !treeToolbarCollapsed && currentViewMode === 'tree');
     updateSearchButtons();
+    updateHeaderCompact();
   };
 
   // Try to sync initial view mode from the embedded UI
   iframe.addEventListener('load', () => {
     postToIframe('CG_REQUEST_VIEW_MODE', {});
-    // Send initial controls state
-    const s = getState();
-    const effectiveHidden = !!s.controlsHidden || !!s.locked || !!s.clickThrough;
-    postToIframe('CG_CONTROLS_STATE', { hidden: effectiveHidden });
   });
 
   // Listen for view mode updates from iframe
@@ -715,28 +822,8 @@ function buildPanel(state, setState, getState) {
 
     if (data.type === 'CG_TREE_TOOLBAR_STATE') {
       treeToolbarCollapsed = !!data.payload?.collapsed;
-      // Update class to control mini-bar visibility
-      panel.classList.toggle('cg-tree-search-expanded', !treeToolbarCollapsed && currentViewMode === 'tree');
       updateSearchButtons();
-    }
-
-    // Handle request to show the main toolbar (from embedded search bar)
-    if (data.type === 'CG_SHOW_TOOLBAR') {
-      const s = getState();
-      if (s.locked) {
-        // If locked, open the popover so user can unlock
-        openPopover();
-      } else {
-        const next = { ...s, controlsHidden: false };
-        setState(next);
-        applyState(panel, next);
-        saveState({ controlsHidden: false });
-      }
-    }
-
-    // Handle request to close the floating panel (from embedded UI)
-    if (data.type === 'CG_CLOSE_PANEL') {
-      closeFloatingPanel();
+      updateHeaderCompact();
     }
   };
   panel.__cgMsgHandler = msgHandler;

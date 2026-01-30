@@ -164,8 +164,6 @@ export default function GitTreeView({
   const [toolbarCollapsed, setToolbarCollapsed] = useState(false);
   const [fontScale, setFontScale] = useState(1);
   const [expanded, setExpanded] = useState(() => new Set());
-  // Track whether the floating panel's controls are hidden (embedded mode only)
-  const [controlsHidden, setControlsHidden] = useState(false);
 
   // Embedded mode (floating window): allow parent to open/focus the search row.
   useEffect(() => {
@@ -186,11 +184,6 @@ export default function GitTreeView({
         const collapsed = !!payload?.collapsed;
         setToolbarCollapsed(collapsed);
         if (!collapsed) setTimeout(() => searchInputRef.current?.focus?.(), 60);
-      }
-
-      // Track whether the floating panel's controls are hidden
-      if (type === 'CG_CONTROLS_STATE') {
-        setControlsHidden(!!payload?.hidden);
       }
     };
 
@@ -752,7 +745,7 @@ export default function GitTreeView({
                 title={toolbarCollapsed ? 'Show search & filters' : 'Hide search & filters'}
                 aria-label={toolbarCollapsed ? 'Show search & filters' : 'Hide search & filters'}
               >
-                {toolbarCollapsed ? '☰' : '▾'}
+                {toolbarCollapsed ? '▸' : '▾'}
               </button>
             </div>
           </div>
@@ -782,57 +775,6 @@ export default function GitTreeView({
                   ✕
                 </button>
               )}
-
-              {/*
-                Compact mode: when width is tight, show filter + font size only
-                when the user hovers/focuses the search box.
-              */}
-              <div className="git-secondary-pop" aria-label="Controls">
-                <div className="git-secondary-section" aria-label="Show nodes">
-                  <div className="git-filter-toggle" role="tablist" aria-label="Show nodes">
-                    <button
-                      type="button"
-                      className={'git-filter-btn' + (displayMode === 'all' ? ' active' : '')}
-                      onClick={() => setDisplayMode('all')}
-                      title="Show Q + A"
-                    >
-                      QA
-                    </button>
-                    <button
-                      type="button"
-                      className={'git-filter-btn' + (displayMode === 'q' ? ' active' : '')}
-                      onClick={() => setDisplayMode('q')}
-                      title="Only Q"
-                    >
-                      Q
-                    </button>
-                    <button
-                      type="button"
-                      className={'git-filter-btn' + (displayMode === 'a' ? ' active' : '')}
-                      onClick={() => setDisplayMode('a')}
-                      title="Only A"
-                    >
-                      A
-                    </button>
-                  </div>
-                </div>
-
-                <div className="git-secondary-section" aria-label="Font size">
-                  <div className="git-font-control" title="Font size">
-                    <span className="git-font-label">Aa</span>
-                    <input
-                      className="git-font-range"
-                      type="range"
-                      min="0.85"
-                      max="1.35"
-                      step="0.05"
-                      value={fontScale}
-                      onChange={(e) => setFontScale(Number(e.target.value))}
-                      aria-label="Font size"
-                    />
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div className="git-toolbar-row2-right" aria-label="Controls">
@@ -890,44 +832,6 @@ export default function GitTreeView({
                 >
                   ▾
                 </button>
-              )}
-
-              {/* Embedded (floating window): show toolbar button when controls are hidden */}
-              {IS_EMBEDDED && controlsHidden && (
-                <>
-                  <button
-                    type="button"
-                    className="git-show-toolbar-btn visible"
-                    onClick={() => {
-                      // Tell parent to show the main toolbar
-                      try {
-                        window.parent?.postMessage({ type: 'CG_SHOW_TOOLBAR' }, '*');
-                      } catch {
-                        // ignore
-                      }
-                    }}
-                    title="Show toolbar"
-                    aria-label="Show toolbar"
-                  >
-                    ☰
-                  </button>
-                  <button
-                    type="button"
-                    className="git-close-btn visible"
-                    onClick={() => {
-                      // Tell parent to close the floating panel
-                      try {
-                        window.parent?.postMessage({ type: 'CG_CLOSE_PANEL' }, '*');
-                      } catch {
-                        // ignore
-                      }
-                    }}
-                    title="Close"
-                    aria-label="Close"
-                  >
-                    ✕
-                  </button>
-                </>
               )}
             </div>
           </div>
