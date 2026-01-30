@@ -794,6 +794,61 @@ html, body {
   border-color: #cbd5e1;
 }
 
+/* Show toolbar button (hamburger menu) - only visible when controls are hidden in embedded mode */
+.git-show-toolbar-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #475569;
+  font-size: 14px;
+  display: none; /* Hidden by default */
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.git-show-toolbar-btn:hover {
+  transform: translateY(-1px);
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+
+/* Show the button when it has the visible class */
+.git-show-toolbar-btn.visible {
+  display: inline-flex;
+}
+
+/* Close button in embedded mode (shown when controls are hidden) */
+.git-close-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #475569;
+  font-size: 14px;
+  display: none; /* Hidden by default */
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.git-close-btn:hover {
+  transform: translateY(-1px);
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.git-close-btn.visible {
+  display: inline-flex;
+}
+
+
 .git-toolbar-left {
   display: flex;
   align-items: center;
@@ -817,6 +872,46 @@ html, body {
   border-radius: 12px;
   position: relative;
 }
+
+/*
+  Compact controls popover (filter + font):
+  In narrow widths, we hide the right-side controls and show them on hover/focus
+  of the search box.
+*/
+.git-secondary-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: none;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 34px rgba(0,0,0,0.12);
+  z-index: 5;
+}
+
+.git-secondary-section + .git-secondary-section {
+  margin-top: 8px;
+}
+
+.git-secondary-section {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+@media (max-width: 380px) {
+  .git-toolbar-right {
+    display: none;
+  }
+
+  .git-search:hover .git-secondary-pop,
+  .git-search:focus-within .git-secondary-pop {
+    display: block;
+  }
+}
+
 
 .git-search-icon {
   font-size: 12px;
