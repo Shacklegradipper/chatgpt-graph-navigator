@@ -171,13 +171,16 @@ export default function GitTreeView({
   const toolbarRef = useRef(null);
   const compactUpdateScheduledRef = useRef(false);
   const currentCompactLevelRef = useRef(0);
+  const lastTightenWidthRef = useRef(0);
 
   // Overflow-driven responsive toolbar with hysteresis.
   // IMPORTANT: do NOT brute-force scan all levels each time (too much layout thrash).
   // Instead, tighten/relax step-by-step from the current level, with overlap detection.
-  const HYSTERESIS_SLACK = 14;
   const OVERFLOW_TOL = 1;
   const MIN_GAP = 2;
+  // Only relax (show more controls) when we have a little extra room.
+  // We use width-based hysteresis because flex gaps are often fixed in CSS.
+  const RELAX_WIDTH_DELTA = 10;
 
   const getRow2Metrics = useCallback(() => {
     const toolbar = toolbarRef.current;
@@ -216,35 +219,22 @@ export default function GitTreeView({
     return false;
   }, []);
 
-  const hasSlackForLevel = useCallback((m) => {
-    if (!m) return false;
-    const { row2, search, right, font, collapse } = m;
-    const overflow = row2.scrollWidth - row2.clientWidth;
-    if (overflow > OVERFLOW_TOL) return false;
-
-    // NOTE: scrollWidth is clamped to at least clientWidth, so "clientWidth - scrollWidth"
-    // is almost always 0 and cannot be used to estimate available slack.
-    // Instead, use real geometry: require extra GAP between groups before relaxing.
-    if (search && right) {
-      const sr = search.getBoundingClientRect();
-      const rr = right.getBoundingClientRect();
-      const gap = rr.left - sr.right;
-      if (gap < MIN_GAP + HYSTERESIS_SLACK) return false;
-    }
-
-    if (font && collapse && font.getClientRects().length && collapse.getClientRects().length) {
-      const fr = font.getBoundingClientRect();
-      const cr = collapse.getBoundingClientRect();
-      const gap = cr.left - fr.right;
-      if (gap < MIN_GAP + HYSTERESIS_SLACK) return false;
-    }
-
-    return true;
-  }, []);
+  const canRelax = useCallback(
+    (m, containerWidth) => {
+      if (!m) return false;
+      // Must fit at the candidate level.
+      if (isTooTight(m)) return false;
+      // Width-based hysteresis: only relax when we've grown enough since the last tighten.
+      return containerWidth >= (lastTightenWidthRef.current || 0) + RELAX_WIDTH_DELTA;
+    },
+    [isTooTight]
+  );
 
   const updateToolbarCompact = useCallback(() => {
     const toolbar = toolbarRef.current;
     if (!toolbar) return;
+
+    const containerWidth = containerRef.current?.getBoundingClientRect?.().width || 0;
 
     // If row2 is collapsed/hidden, keep level 0 (avoid jitter).
     const m0 = getRow2Metrics();
@@ -268,6 +258,7 @@ export default function GitTreeView({
       lv += 1;
       toolbar.dataset.compact = String(lv);
       void m.row2.offsetWidth;
+      lastTightenWidthRef.current = containerWidth;
     }
 
     // Relax step-by-step with hysteresis slack.
@@ -280,7 +271,7 @@ export default function GitTreeView({
         break;
       }
       void m.row2.offsetWidth;
-      if (hasSlackForLevel(m) && !isTooTight(m)) {
+      if (canRelax(m, containerWidth)) {
         lv = test;
         continue;
       }
@@ -293,7 +284,7 @@ export default function GitTreeView({
       setCompactLevel(lv);
     }
     toolbar.dataset.compact = String(lv);
-  }, [getRow2Metrics, hasSlackForLevel, isTooTight]);
+  }, [canRelax, getRow2Metrics, isTooTight]);
 
   const scheduleCompactUpdate = useCallback(() => {
     if (compactUpdateScheduledRef.current) return;

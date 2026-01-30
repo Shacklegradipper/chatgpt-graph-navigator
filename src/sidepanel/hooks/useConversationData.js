@@ -266,7 +266,7 @@ export function useConversationData() {
         }
       }
 
-      return true;
+      // 不需要响应 background，不要 return true
     };
 
     chrome.runtime.onMessage.addListener(handleMessage);

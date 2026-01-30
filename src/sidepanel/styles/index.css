@@ -1081,10 +1081,36 @@ html, body {
   padding: 10px 12px 18px;
 }
 
+/* Custom scrollbar styling */
+.git-root::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.git-root::-webkit-scrollbar-track {
+  background: transparent;
+}
+.git-root::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+}
+.git-root::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+.git-root::-webkit-scrollbar-corner {
+  background: transparent;
+}
+/* Firefox */
+.git-root {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.12) transparent;
+}
+
 .git-ul {
   list-style: none;
   margin: 0;
   padding: 0;
+  width: fit-content;
+  min-width: 100%;
 }
 
 /*
@@ -1125,7 +1151,7 @@ html, body {
 }
 
 .git-row {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
   padding: 8px 10px;
@@ -1133,13 +1159,14 @@ html, body {
   cursor: pointer;
   border: 1px solid transparent;
   user-select: none;
-  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+  min-width: fit-content;
 }
 
 .git-row:hover {
   background: #ffffff;
   border-color: #e2e8f0;
-  transform: translateY(-1px);
 }
 
 .git-row.git-selected {
@@ -1205,11 +1232,8 @@ html, body {
 }
 
 .git-text {
-  flex: 1;
   font-size: var(--gitFont);
   color: #0f172a;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 

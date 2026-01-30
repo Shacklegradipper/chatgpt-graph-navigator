@@ -553,11 +553,32 @@ function setupDragging(panel, dragEl, getState, setState) {
 }
 
 function setupResizePersistence(panel, getState, setState) {
+  let initialized = false;
   const ro = new ResizeObserver(() => {
     const s = getState();
     if (s.minimized || s.locked) return;
+
     const rect = panel.getBoundingClientRect();
-    const next = keepOnScreen({ ...s, width: Math.round(rect.width), height: Math.round(rect.height) });
+    const newWidth = Math.round(rect.width);
+    const newHeight = Math.round(rect.height);
+
+    // Skip the initial trigger - we don't want to overwrite the loaded state
+    // with the default/computed size before the panel is fully rendered.
+    if (!initialized) {
+      initialized = true;
+      // Only skip if the size matches what we already have in state
+      // (meaning applyState worked correctly)
+      if (Math.abs(newWidth - s.width) < 2 && Math.abs(newHeight - s.height) < 2) {
+        return;
+      }
+    }
+
+    // Only update if size actually changed (avoid unnecessary saves)
+    if (Math.abs(newWidth - s.width) < 2 && Math.abs(newHeight - s.height) < 2) {
+      return;
+    }
+
+    const next = keepOnScreen({ ...s, width: newWidth, height: newHeight });
     setState(next);
     // IMPORTANT: when resizing hits the viewport bounds, we may need to
     // adjust x/y to keep the toolbar (and the whole panel) on screen.
