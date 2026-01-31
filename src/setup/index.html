@@ -4,416 +4,678 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ChatGPT Graph - Setup</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --color-bg: #fafafa;
+      --color-surface: #ffffff;
+      --color-text: #1a1a1a;
+      --color-text-secondary: #6b6b6b;
+      --color-text-tertiary: #999999;
+      --color-border: #e8e8e8;
+      --color-border-light: #f0f0f0;
+      --color-accent: #0a0a0a;
+      --color-accent-soft: #2a2a2a;
+      --color-success: #1a7f37;
+      --color-success-bg: #dafbe1;
+      --color-error: #cf222e;
+      --color-error-bg: #ffebe9;
+      --color-warning: #9a6700;
+      --color-warning-bg: #fff8c5;
+      --font-display: 'DM Serif Display', Georgia, serif;
+      --font-body: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      --font-mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+      --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
     * {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
     }
 
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: var(--font-body);
+      background: var(--color-bg);
+      color: var(--color-text);
       min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* Subtle grid pattern background */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,0,0,0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,0,0,0.015) 1px, transparent 1px);
+      background-size: 60px 60px;
+      pointer-events: none;
+      z-index: -1;
+    }
+
+    .page-wrapper {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 60px 32px 80px;
+      opacity: 0;
+      animation: fadeIn 0.8s var(--ease-out-expo) 0.1s forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Header */
+    .header {
+      margin-bottom: 64px;
+      padding-bottom: 48px;
+      border-bottom: 1px solid var(--color-border);
+      position: relative;
+    }
+
+    .header-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 32px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--color-accent);
+      border-radius: 10px;
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 20px;
+      font-size: 20px;
     }
 
-    .container {
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-      max-width: 700px;
-      width: 100%;
-      overflow: hidden;
-    }
-
-    .header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 32px;
-      text-align: center;
+    .brand-text {
+      font-family: var(--font-body);
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      color: var(--color-text-secondary);
     }
 
     .header h1 {
-      font-size: 28px;
-      font-weight: 700;
-      margin-bottom: 8px;
+      font-family: var(--font-display);
+      font-size: clamp(32px, 5vw, 42px);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin-bottom: 16px;
     }
 
-    .header p {
-      font-size: 16px;
-      opacity: 0.95;
+    .header-subtitle {
+      font-size: 17px;
+      color: var(--color-text-secondary);
+      max-width: 480px;
     }
 
-    .content {
-      padding: 32px;
+    /* Language Switcher */
+    .language-switcher {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .language-switcher label {
+      font-size: 13px;
+      color: var(--color-text-tertiary);
+    }
+
+    .language-select {
+      padding: 6px 10px;
+      border: 1px solid var(--color-border);
+      border-radius: 6px;
+      background: var(--color-surface);
+      font-family: var(--font-body);
+      font-size: 13px;
+      color: var(--color-text);
+      cursor: pointer;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+    }
+
+    .language-select:hover {
+      border-color: var(--color-text-tertiary);
+    }
+
+    .language-select:focus {
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px rgba(0,0,0,0.06);
+    }
+
+    /* Steps */
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
     }
 
     .step {
-      margin-bottom: 32px;
-      padding-bottom: 32px;
-      border-bottom: 1px solid #e5e7eb;
+      position: relative;
+      padding: 32px 0;
+      border-bottom: 1px solid var(--color-border-light);
+      opacity: 0;
+      animation: stepReveal 0.6s var(--ease-out-expo) forwards;
     }
 
     .step:last-child {
       border-bottom: none;
-      margin-bottom: 0;
-      padding-bottom: 0;
     }
+
+    @keyframes stepReveal {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .step:nth-child(1) { animation-delay: 0.15s; }
+    .step:nth-child(2) { animation-delay: 0.2s; }
+    .step:nth-child(3) { animation-delay: 0.25s; }
+    .step:nth-child(4) { animation-delay: 0.3s; }
+    .step:nth-child(5) { animation-delay: 0.35s; }
+    .step:nth-child(6) { animation-delay: 0.4s; }
+    .step:nth-child(7) { animation-delay: 0.45s; }
+    .step:nth-child(8) { animation-delay: 0.5s; }
 
     .step-header {
       display: flex;
-      align-items: center;
-      margin-bottom: 16px;
+      align-items: baseline;
+      gap: 16px;
+      margin-bottom: 12px;
     }
 
     .step-number {
-      width: 32px;
-      height: 32px;
-      background: #667eea;
-      color: white;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 700;
-      font-size: 16px;
-      margin-right: 12px;
-      flex-shrink: 0;
+      font-family: var(--font-display);
+      font-size: 28px;
+      color: var(--color-text-tertiary);
+      line-height: 1;
+      min-width: 28px;
     }
 
     .step-title {
       font-size: 18px;
       font-weight: 600;
-      color: #111827;
+      letter-spacing: -0.01em;
+      color: var(--color-text);
     }
 
     .step-content {
       margin-left: 44px;
-      color: #4b5563;
-      line-height: 1.6;
+      color: var(--color-text-secondary);
+      font-size: 15px;
     }
 
     .step-content p {
       margin-bottom: 12px;
     }
 
+    .step-content p:last-child {
+      margin-bottom: 0;
+    }
+
+    .step-content strong {
+      color: var(--color-text);
+      font-weight: 500;
+    }
+
+    .step-content ul,
     .step-content ol {
-      margin-left: 20px;
-      margin-bottom: 12px;
+      margin: 12px 0;
+      padding-left: 20px;
     }
 
     .step-content li {
       margin-bottom: 8px;
     }
 
-    .code-box {
-      background: #f3f4f6;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      padding: 12px;
-      font-family: 'Courier New', monospace;
+    .step-content code {
+      font-family: var(--font-mono);
       font-size: 13px;
-      color: #1f2937;
-      margin: 12px 0;
-      word-break: break-all;
+      background: var(--color-border-light);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--color-text);
     }
 
-    .screenshot {
-      border: 2px solid #e5e7eb;
-      border-radius: 8px;
-      margin: 12px 0;
-      max-width: 100%;
+    /* Code Box */
+    .code-box {
+      background: var(--color-text);
+      color: #e8e8e8;
+      border-radius: 10px;
+      padding: 16px 20px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.7;
+      margin: 16px 0;
+      overflow-x: auto;
+    }
+
+    /* Token Input Section */
+    .token-section {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 16px;
+      padding: 32px;
+      margin-top: 8px;
     }
 
     .input-group {
-      margin: 16px 0;
+      margin-bottom: 24px;
     }
 
     .input-group label {
       display: block;
-      font-weight: 600;
-      color: #374151;
-      margin-bottom: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--color-text);
+      margin-bottom: 10px;
     }
 
     .input-group textarea {
       width: 100%;
       min-height: 120px;
-      padding: 12px;
-      border: 2px solid #d1d5db;
-      border-radius: 8px;
-      font-family: 'Courier New', monospace;
+      padding: 16px;
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      font-family: var(--font-mono);
       font-size: 13px;
+      line-height: 1.6;
       resize: vertical;
-      transition: border-color 0.2s;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      background: var(--color-bg);
+    }
+
+    .input-group textarea::placeholder {
+      color: var(--color-text-tertiary);
     }
 
     .input-group textarea:focus {
       outline: none;
-      border-color: #667eea;
+      border-color: var(--color-accent);
+      box-shadow: 0 0 0 3px rgba(0,0,0,0.06);
+      background: var(--color-surface);
     }
 
+    /* Buttons */
     .button-group {
       display: flex;
       gap: 12px;
-      margin-top: 24px;
     }
 
     button {
       flex: 1;
       padding: 14px 24px;
       border: none;
-      border-radius: 8px;
+      border-radius: 10px;
+      font-family: var(--font-body);
       font-size: 15px;
-      font-weight: 600;
+      font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.25s var(--ease-out-quart);
+      position: relative;
+      overflow: hidden;
     }
 
     button.primary {
-      background: #667eea;
+      background: var(--color-accent);
       color: white;
     }
 
-    button.primary:hover {
-      background: #5568d3;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    button.primary:hover:not(:disabled) {
+      background: var(--color-accent-soft);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    }
+
+    button.primary:active:not(:disabled) {
+      transform: translateY(0);
     }
 
     button.secondary {
-      background: #e5e7eb;
-      color: #374151;
+      background: var(--color-surface);
+      color: var(--color-text);
+      border: 1px solid var(--color-border);
     }
 
-    button.secondary:hover {
-      background: #d1d5db;
+    button.secondary:hover:not(:disabled) {
+      background: var(--color-bg);
+      border-color: var(--color-text-tertiary);
     }
 
     button:disabled {
-      opacity: 0.5;
+      opacity: 0.4;
       cursor: not-allowed;
       transform: none !important;
     }
 
-    .alert {
-      padding: 12px 16px;
-      border-radius: 8px;
-      margin: 16px 0;
-      font-size: 14px;
-    }
-
-    .alert.success {
-      background: #d1fae5;
-      color: #065f46;
-      border: 1px solid #6ee7b7;
-    }
-
-    .alert.error {
-      background: #fee2e2;
-      color: #991b1b;
-      border: 1px solid #fca5a5;
-    }
-
-    .alert.warning {
-      background: #fef3c7;
-      color: #92400e;
-      border: 1px solid #fcd34d;
-    }
-
-    .hidden {
-      display: none;
-    }
-
+    /* Loading Spinner */
     .loading {
       display: inline-block;
-      width: 16px;
-      height: 16px;
-      border: 2px solid white;
+      width: 14px;
+      height: 14px;
+      border: 2px solid currentColor;
       border-top-color: transparent;
       border-radius: 50%;
-      animation: spin 0.8s linear infinite;
+      animation: spin 0.7s linear infinite;
       margin-right: 8px;
+      vertical-align: middle;
     }
 
     @keyframes spin {
       to { transform: rotate(360deg); }
     }
 
-    /* 语言切换器样式 */
-    .language-switcher {
+    /* Alerts */
+    .alert {
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.5;
+    }
+
+    .alert::before {
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .alert.success {
+      background: var(--color-success-bg);
+      color: var(--color-success);
+    }
+
+    .alert.success::before {
+      content: '✓';
+    }
+
+    .alert.error {
+      background: var(--color-error-bg);
+      color: var(--color-error);
+    }
+
+    .alert.error::before {
+      content: '✕';
+    }
+
+    .alert.warning {
+      background: var(--color-warning-bg);
+      color: var(--color-warning);
+    }
+
+    .alert.warning::before {
+      content: '!';
+      font-weight: 700;
+    }
+
+    /* Security Notice */
+    .security-notice {
+      background: var(--color-bg);
+      border: 1px solid var(--color-border-light);
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 48px;
+      opacity: 0;
+      animation: fadeIn 0.6s var(--ease-out-expo) 0.6s forwards;
+    }
+
+    .security-notice-header {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      background: rgba(255, 255, 255, 0.25);
-      border-radius: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      backdrop-filter: blur(10px);
+      gap: 10px;
+      margin-bottom: 16px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text);
     }
 
-    .language-switcher label {
-      font-size: 13px;
-      font-weight: 500;
-      color: white;
-      white-space: nowrap;
+    .security-notice-header svg {
+      width: 18px;
+      height: 18px;
+      color: var(--color-text-secondary);
     }
 
-    .language-select {
-      padding: 4px 8px;
-      border: 1px solid rgba(255, 255, 255, 0.4);
-      border-radius: 4px;
-      background: rgba(255, 255, 255, 0.9);
-      font-size: 13px;
-      color: #1f2937;
-      cursor: pointer;
-      transition: all 0.2s;
-      outline: none;
+    .security-notice ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
     }
 
-    .language-select:hover {
-      background: white;
-      border-color: rgba(255, 255, 255, 0.6);
+    .security-notice li {
+      font-size: 14px;
+      color: var(--color-text-secondary);
+      padding: 6px 0;
+      padding-left: 24px;
+      position: relative;
     }
 
-    .language-select:focus {
-      background: white;
-      border-color: white;
-      box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.2);
+    .security-notice li::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 12px;
+      width: 6px;
+      height: 6px;
+      background: var(--color-border);
+      border-radius: 50%;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .page-wrapper {
+        padding: 40px 20px 60px;
+      }
+
+      .header {
+        margin-bottom: 48px;
+        padding-bottom: 32px;
+      }
+
+      .header-top {
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .step {
+        padding: 24px 0;
+      }
+
+      .step-header {
+        gap: 12px;
+      }
+
+      .step-number {
+        font-size: 24px;
+        min-width: 24px;
+      }
+
+      .step-content {
+        margin-left: 36px;
+      }
+
+      .token-section {
+        padding: 24px;
+      }
+
+      .button-group {
+        flex-direction: column;
+      }
+
+      .security-notice {
+        padding: 20px;
+      }
+    }
+
+    /* Hidden utility */
+    .hidden {
+      display: none;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <div id="language-switcher-container" style="position: absolute; top: 16px; right: 16px;"></div>
-      <h1 data-i18n="setupTitle">🌲 ChatGPT Graph Navigator</h1>
-      <p data-i18n="setupSubtitle">Setup - Get Your Authentication Token</p>
-    </div>
+  <div class="page-wrapper">
+    <header class="header">
+      <div class="header-top">
+        <div class="brand">
+          <div class="brand-icon">🌲</div>
+          <span class="brand-text">ChatGPT Graph</span>
+        </div>
+        <div id="language-switcher-container"></div>
+      </div>
+      <h1 data-i18n="setupTitle">Manual Token Setup</h1>
+      <p class="header-subtitle" data-i18n="setupSubtitle">Follow these steps to configure your authentication token</p>
+    </header>
 
-    <div class="content">
+    <div class="steps">
       <!-- Step 1 -->
       <div class="step">
         <div class="step-header">
-          <div class="step-number">1</div>
-          <div class="step-title" data-i18n="step1Title">打开 ChatGPT 并登录</div>
+          <span class="step-number">1</span>
+          <span class="step-title" data-i18n="step1Title">Open ChatGPT and sign in</span>
         </div>
         <div class="step-content">
-          <p data-i18n="step1Content">前往 <strong>https://chatgpt.com</strong> 并确保你已经登录你的账号。</p>
+          <p data-i18n="step1Content">Go to <strong>https://chatgpt.com</strong> and make sure you're logged into your account.</p>
         </div>
       </div>
 
       <!-- Step 2 -->
       <div class="step">
         <div class="step-header">
-          <div class="step-number">2</div>
-          <div class="step-title" data-i18n="step2Title">打开开发者工具</div>
+          <span class="step-number">2</span>
+          <span class="step-title" data-i18n="step2Title">Open Developer Tools</span>
         </div>
         <div class="step-content">
-          <p data-i18n="step2Content">在 ChatGPT 页面上,按下键盘上的：</p>
+          <p data-i18n="step2Content">On the ChatGPT page, press:</p>
           <ul>
-            <li data-i18n="step2Windows"><strong>Windows/Linux:</strong> F12 或 Ctrl + Shift + I</li>
+            <li data-i18n="step2Windows"><strong>Windows/Linux:</strong> F12 or Ctrl + Shift + I</li>
             <li data-i18n="step2Mac"><strong>Mac:</strong> Cmd + Option + I</li>
           </ul>
-          <p data-i18n="step2Footer">开发者工具会在页面底部或右侧打开。</p>
+          <p data-i18n="step2Footer">The Developer Tools panel will open at the bottom or side of the page.</p>
         </div>
       </div>
 
       <!-- Step 3 -->
       <div class="step">
         <div class="step-header">
-          <div class="step-number">3</div>
-          <div class="step-title" data-i18n="step3Title">切换到 Network 标签页</div>
+          <span class="step-number">3</span>
+          <span class="step-title" data-i18n="step3Title">Go to the Network tab</span>
         </div>
         <div class="step-content">
-          <p data-i18n="step3Content">在开发者工具的顶部，点击 <strong>"Network"</strong> (网络) 标签页。</p>
+          <p data-i18n="step3Content">Click the <strong>Network</strong> tab at the top of Developer Tools.</p>
         </div>
       </div>
 
       <!-- Step 4 -->
       <div class="step">
         <div class="step-header">
-          <div class="step-number">4</div>
-          <div class="step-title" data-i18n="step4Title">触发 API 请求</div>
+          <span class="step-number">4</span>
+          <span class="step-title" data-i18n="step4Title">Trigger an API request</span>
         </div>
         <div class="step-content">
-          <p data-i18n="step4Content">在 ChatGPT 中发送一条消息（任何内容都可以），或者刷新页面 (F5)。<br>这会触发 API 请求，我们可以从中获取 token。</p>
+          <p data-i18n="step4Content">Send a message in ChatGPT (any content works), or refresh the page (F5). This triggers an API request we can extract the token from.</p>
         </div>
       </div>
 
       <!-- Step 5 -->
       <div class="step">
         <div class="step-header">
-          <div class="step-number">5</div>
-          <div class="step-title" data-i18n="step5Title">查找 backend-api 请求</div>
+          <span class="step-number">5</span>
+          <span class="step-title" data-i18n="step5Title">Find a backend-api request</span>
         </div>
         <div class="step-content">
-          <p data-i18n="step5Content">在 Network 标签页的请求列表中，找到任何以 <code>backend-api</code> 开头的请求，例如：</p>
-          <div class="code-box" data-i18n="step5Examples">backend-api/conversation<br>backend-api/conversations<br>backend-api/me</div>
-          <p data-i18n="step5Footer">点击该请求。</p>
+          <p data-i18n="step5Content">In the Network tab, look for any request starting with <code>backend-api</code>, such as:</p>
+          <div class="code-box">backend-api/conversation<br>backend-api/conversations<br>backend-api/me</div>
+          <p data-i18n="step5Footer">Click on that request to select it.</p>
         </div>
       </div>
 
       <!-- Step 6 -->
       <div class="step">
         <div class="step-header">
-          <div class="step-number">6</div>
-          <div class="step-title" data-i18n="step6Title">复制 Authorization Token</div>
+          <span class="step-number">6</span>
+          <span class="step-title" data-i18n="step6Title">Copy the Authorization token</span>
         </div>
         <div class="step-content">
           <ol>
-            <li data-i18n="step6Item1">在右侧面板中，点击 <strong>"Headers"</strong> (请求头) 标签页</li>
-            <li data-i18n="step6Item2">向下滚动找到 <strong>"Request Headers"</strong> (请求标头) 部分</li>
-            <li data-i18n="step6Item3">找到 <strong>"authorization:"</strong> 这一行</li>
-            <li data-i18n="step6Item4">它的值是 <code>Bearer eyJhbGci...</code> 这样的格式</li>
-            <li data-i18n="step6Item5"><strong>只复制 "Bearer " 后面的部分</strong>（不包括 "Bearer " 这个词）</li>
+            <li data-i18n="step6Item1">In the right panel, click the <strong>Headers</strong> tab</li>
+            <li data-i18n="step6Item2">Scroll down to the <strong>Request Headers</strong> section</li>
+            <li data-i18n="step6Item3">Find the line labeled <strong>authorization:</strong></li>
+            <li data-i18n="step6Item4">The value looks like <code>Bearer eyJhbGci...</code></li>
+            <li data-i18n="step6Item5"><strong>Copy only the part after "Bearer "</strong> (don't include the word "Bearer")</li>
           </ol>
-          <p data-i18n="step6Footer">Token 通常很长（1000+ 字符），以 <code>eyJ</code> 开头。</p>
+          <p data-i18n="step6Footer">The token is usually very long (1000+ characters) and starts with <code>eyJ</code>.</p>
         </div>
       </div>
 
-      <!-- Step 7 -->
+      <!-- Step 7: Token Input -->
       <div class="step">
         <div class="step-header">
-          <div class="step-number">7</div>
-          <div class="step-title" data-i18n="step7Title">粘贴 Token</div>
+          <span class="step-number">7</span>
+          <span class="step-title" data-i18n="step7Title">Paste your token</span>
         </div>
         <div class="step-content">
-          <div class="input-group">
-            <label for="token-input" data-i18n="step7Label">粘贴你的 Access Token:</label>
-            <textarea
-              id="token-input"
-              data-i18n-placeholder="step7Placeholder"
-              placeholder="eyJhbGciOiJSUzI1NiIsImtpZCI6IjE5MzQ0ZTY1LWJiYzktNDRkMS1hOWQwLWY5NTdi..."
-            ></textarea>
-          </div>
+          <div class="token-section">
+            <div class="input-group">
+              <label for="token-input" data-i18n="step7Label">Access Token</label>
+              <textarea
+                id="token-input"
+                data-i18n-placeholder="step7Placeholder"
+                placeholder="eyJhbGciOiJSUzI1NiIsImtpZCI6IjE5MzQ0ZTY1LWJiYzktNDRkMS1hOWQwLWY5NTdi..."
+              ></textarea>
+            </div>
 
-          <div id="alert-container"></div>
+            <div id="alert-container"></div>
 
-          <div class="button-group">
-            <button class="secondary" id="test-btn" data-i18n="testTokenBtn">
-              测试 Token
-            </button>
-            <button class="primary" id="save-btn" disabled data-i18n="saveCompleteBtn">
-              保存并完成
-            </button>
+            <div class="button-group">
+              <button class="secondary" id="test-btn" data-i18n="testTokenBtn">
+                Test Token
+              </button>
+              <button class="primary" id="save-btn" disabled data-i18n="saveCompleteBtn">
+                Save & Complete
+              </button>
+            </div>
           </div>
         </div>
       </div>
+    </div>
 
-      <!-- Help -->
-      <div class="step">
-        <div class="alert warning">
-          <strong data-i18n="securityWarningTitle">⚠️ 安全提示：</strong><br>
-          <span data-i18n="securityWarning1">• Token 仅存储在你的本地浏览器中，不会发送到任何第三方服务器</span><br>
-          <span data-i18n="securityWarning2">• Token 有效期约 24 小时，过期后需要重新获取</span><br>
-          <span data-i18n="securityWarning3">• 不要将 token 分享给他人</span>
-        </div>
+    <!-- Security Notice -->
+    <div class="security-notice">
+      <div class="security-notice-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        <span data-i18n="securityWarningTitle">Security Notice</span>
       </div>
+      <ul>
+        <li data-i18n="securityWarning1">Your token is stored locally in your browser and never sent to third-party servers</li>
+        <li data-i18n="securityWarning2">Tokens are valid for approximately 24 hours before needing renewal</li>
+        <li data-i18n="securityWarning3">Never share your token with anyone</li>
+      </ul>
     </div>
   </div>
 

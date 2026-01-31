@@ -423,12 +423,12 @@ async function loadStatusContent() {
 
     // 操作按钮
     statusHtml += `
-      <div class="actions" style="margin-bottom: 8px;">
+      <div class="actions">
         <button class="primary" id="open-sidepanel-btn" style="flex: 1;">
           📊 ${i18n('openGraphBtn') || 'Open Graph View'}
         </button>
       </div>
-      <div class="actions" style="margin-bottom: 8px;">
+      <div class="actions">
         <button class="secondary" id="toggle-floating-btn" style="flex: 1;">
           🪟 ${i18n('openFloatingBtn') || 'Floating Window'}
         </button>
