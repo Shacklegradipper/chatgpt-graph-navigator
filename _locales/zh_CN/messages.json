@@ -315,10 +315,10 @@
     "message": "• 不要将 token 分享给他人"
   },
   "tokenAlreadyConfigured": {
-    "message": "✓ 你已经配置了有效的 token。如需更新，请输入新的 token。"
+    "message": "你已经配置了有效的 token。如需更新，请输入新的 token。"
   },
   "tokenExpiredPleaseUpdate": {
-    "message": "⚠️ 你的 token 已过期，请获取新的 token。"
+    "message": "你的 token 已过期，请获取新的 token。"
   },
   "tokenEmpty": {
     "message": "Token 不能为空"
@@ -331,6 +331,15 @@
   },
   "tokenInvalidJWT": {
     "message": "Token 格式不正确，JWT token 应该有三个部分"
+  },
+  "sidepanelZoomTitle": {
+    "message": "侧边栏缩放"
+  },
+  "sidepanelZoomLabel": {
+    "message": "缩放百分比："
+  },
+  "reset": {
+    "message": "重置"
   },
   "tokenValidationSuccess": {
     "message": "✓ Token 验证成功！<br>账号: $EMAIL$",
@@ -387,7 +396,7 @@
     "message": "语言："
   },
   "openGraphBtn": {
-    "message": "打开图谱视图"
+    "message": "打开侧边栏"
   },
 
   "collapseSettingsTitle": {
@@ -415,7 +424,7 @@
     "message": "展开"
   },
   "openFloatingBtn": {
-    "message": "悬浮窗"
+    "message": "打开悬浮窗"
   },
 
   "waitingForToken": {
@@ -431,7 +440,7 @@
     "message": "或者您也可以手动配置令牌。"
   },
   "manualSetupBtn": {
-    "message": "手动设置"
+    "message": "配置令牌"
   },
   "tokenSourceLabel": {
     "message": "来源"

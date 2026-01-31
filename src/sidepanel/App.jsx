@@ -55,7 +55,7 @@ function App() {
     setCurrentNodeId
   } = useConversationData();
 
-  // Embedded mode: allow the parent (floating panel) to control view mode / refresh.
+  // Embedded mode: allow the parent (floating panel) to control view mode / refresh / minimap.
   useEffect(() => {
     if (!IS_EMBEDDED) return;
 
@@ -73,6 +73,14 @@ function App() {
         } catch {
           // ignore
         }
+      } else if (type === 'CG_TOGGLE_MINIMAP') {
+        toggleMiniMap();
+      } else if (type === 'CG_REQUEST_MINIMAP_STATE') {
+        try {
+          event.source?.postMessage({ type: 'CG_MINIMAP_STATE', payload: { visible: miniMapVisible } }, '*');
+        } catch {
+          // ignore
+        }
       }
     };
 
@@ -81,12 +89,13 @@ function App() {
     try {
       window.parent?.postMessage({ type: 'CG_READY' }, '*');
       window.parent?.postMessage({ type: 'CG_VIEW_MODE', payload: { mode: viewMode } }, '*');
+      window.parent?.postMessage({ type: 'CG_MINIMAP_STATE', payload: { visible: miniMapVisible } }, '*');
     } catch {
       // ignore
     }
 
     return () => window.removeEventListener('message', handler);
-  }, [viewMode, refreshData]);
+  }, [viewMode, refreshData, miniMapVisible, toggleMiniMap]);
 
   // Notify parent when view mode changes
   useEffect(() => {
@@ -97,6 +106,16 @@ function App() {
       // ignore
     }
   }, [viewMode]);
+
+  // Notify parent when minimap visibility changes
+  useEffect(() => {
+    if (!IS_EMBEDDED) return;
+    try {
+      window.parent?.postMessage({ type: 'CG_MINIMAP_STATE', payload: { visible: miniMapVisible } }, '*');
+    } catch {
+      // ignore
+    }
+  }, [miniMapVisible]);
 
   // Persist view mode
   useEffect(() => {
@@ -189,7 +208,9 @@ function App() {
   // 渲染空状态
   const renderEmptyState = () => (
     <div className="empty-state">
-      <div className="empty-icon">🌲</div>
+      <div className="empty-icon">
+        <img src={chrome.runtime.getURL('assets/icon128.png')} alt="ChatGPT Graph" style={{ width: '64px', height: '64px' }} />
+      </div>
       <h2>No Conversation Loaded</h2>
       <p>Open a ChatGPT conversation to see its graph structure</p>
     </div>

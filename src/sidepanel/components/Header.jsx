@@ -9,6 +9,8 @@
 
 import React from 'react';
 
+const iconUrl = (name) => chrome.runtime.getURL(`assets/${name}`);
+
 export default function Header({
   onRefresh,
   isLoading,
@@ -28,7 +30,7 @@ export default function Header({
             aria-label="Graph"
             type="button"
           >
-            🗺️
+            <img className="toolbar-icon" src={iconUrl('graph.svg')} alt="Graph" />
           </button>
           <button
             className={'view-toggle-btn' + (viewMode === 'tree' ? ' active' : '')}
@@ -37,7 +39,7 @@ export default function Header({
             aria-label="Tree"
             type="button"
           >
-            🌿
+            <img className="toolbar-icon" src={iconUrl('tree.svg')} alt="Tree" />
           </button>
         </div>
       </div>
@@ -51,7 +53,7 @@ export default function Header({
             aria-label={miniMapVisible ? 'Hide minimap' : 'Show minimap'}
             type="button"
           >
-            🧭
+            <img className="toolbar-icon" src={iconUrl('minimap.svg')} alt="Minimap" />
           </button>
         )}
         <button
@@ -62,7 +64,9 @@ export default function Header({
           aria-label="Refresh"
           type="button"
         >
-          <span className={isLoading ? 'spinning' : ''}>🔄</span>
+          <span className={isLoading ? 'spinning' : ''}>
+            <img className="toolbar-icon" src={iconUrl('fresh.svg')} alt="Refresh" />
+          </span>
         </button>
       </div>
     </header>

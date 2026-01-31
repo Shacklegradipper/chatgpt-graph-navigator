@@ -138,7 +138,7 @@ function createSidepanelZoomSettingsHTML() {
   const clamped = Math.max(SIDEPANEL_ZOOM_MIN, Math.min(SIDEPANEL_ZOOM_MAX, percent));
   return `
     <div class="collapse-settings">
-      <h3>🧩 ${i18n('sidepanelZoomTitle') || 'Side Panel UI Zoom'}</h3>
+      <h3>${i18n('sidepanelZoomTitle') || 'Side Panel UI Zoom'}</h3>
 
       <div class="setting-item" style="flex-direction: column; align-items: stretch; gap: 8px;">
         <div style="display:flex; justify-content: space-between; align-items:center; width:100%;">
@@ -425,12 +425,12 @@ async function loadStatusContent() {
     statusHtml += `
       <div class="actions">
         <button class="primary" id="open-sidepanel-btn" style="flex: 1;">
-          📊 ${i18n('openGraphBtn') || 'Open Graph View'}
+           ${i18n('openGraphBtn') || 'Open Graph View'}
         </button>
       </div>
       <div class="actions">
         <button class="secondary" id="toggle-floating-btn" style="flex: 1;">
-          🪟 ${i18n('openFloatingBtn') || 'Floating Window'}
+           ${i18n('openFloatingBtn') || 'Floating Window'}
         </button>
       </div>
       <div class="actions">

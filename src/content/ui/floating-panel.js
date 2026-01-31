@@ -157,8 +157,8 @@ function ensureStyles() {
        Level 0: default
        Level 1: shrink sizes/gaps
        Level 2: hide refresh
-       Level 3: hide refresh + opacity
-       Level 4: hide refresh + opacity + view toggle
+       Level 3: hide refresh + minimap
+       Level 4: hide refresh + minimap + opacity
     ============================================================ */
     #${PANEL_ID}[data-cg-compact="1"] {
       --cg-gap: 4px;
@@ -182,11 +182,12 @@ function ensureStyles() {
       --cg-pad: 8px;
       --cg-btn: 26px;
       --cg-view-btn: 26px;
+      --cg-slider: 56px;
     }
     #${PANEL_ID}[data-cg-compact="3"] .cg-header [data-action="refresh"] {
       display: none !important;
     }
-    #${PANEL_ID}[data-cg-compact="3"] .cg-header .cg-opacity {
+    #${PANEL_ID}[data-cg-compact="3"] .cg-header [data-action="minimap"] {
       display: none !important;
     }
     #${PANEL_ID}[data-cg-compact="4"] {
@@ -196,6 +197,9 @@ function ensureStyles() {
       --cg-view-btn: 24px;
     }
     #${PANEL_ID}[data-cg-compact="4"] .cg-header [data-action="refresh"] {
+      display: none !important;
+    }
+    #${PANEL_ID}[data-cg-compact="4"] .cg-header [data-action="minimap"] {
       display: none !important;
     }
     #${PANEL_ID}[data-cg-compact="4"] .cg-header .cg-opacity {
@@ -228,6 +232,20 @@ function ensureStyles() {
       align-items: center;
       justify-content: center;
       transition: background-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    #${PANEL_ID} .cg-icon {
+      width: 16px;
+      height: 16px;
+      opacity: 0.7;
+      transition: opacity 0.15s ease;
+    }
+    #${PANEL_ID} .cg-btn:hover .cg-icon,
+    #${PANEL_ID} .cg-view-btn:hover .cg-icon {
+      opacity: 0.9;
+    }
+    #${PANEL_ID} .cg-btn.cg-active .cg-icon,
+    #${PANEL_ID} .cg-view-btn.cg-active .cg-icon {
+      opacity: 1;
     }
     #${PANEL_ID} .cg-view-btn:hover {
       background: rgba(255,255,255,0.7);
@@ -599,23 +617,25 @@ function buildPanel(state, setState, getState) {
 
   const header = document.createElement('div');
   header.className = 'cg-header';
+  const iconUrl = (name) => chrome.runtime.getURL(`assets/${name}`);
   header.innerHTML = `
     <div class="cg-bar-left">
       <div class="cg-view-toggle" role="tablist" aria-label="View mode">
-        <button class="cg-view-btn" data-action="view" data-mode="graph" title="Graph">🗺️</button>
-        <button class="cg-view-btn" data-action="view" data-mode="tree" title="Tree">🌿</button>
+        <button class="cg-view-btn" data-action="view" data-mode="graph" title="Graph"><img class="cg-icon" src="${iconUrl('graph.svg')}" alt="Graph"></button>
+        <button class="cg-view-btn" data-action="view" data-mode="tree" title="Tree"><img class="cg-icon" src="${iconUrl('tree.svg')}" alt="Tree"></button>
       </div>
-      <button class="cg-btn" data-action="refresh" title="Refresh">🔄</button>
+      <button class="cg-btn" data-action="refresh" title="Refresh"><img class="cg-icon" src="${iconUrl('fresh.svg')}" alt="Refresh"></button>
+      <button class="cg-btn cg-minimap-btn" data-action="minimap" title="Toggle minimap" style="display:none;"><img class="cg-icon" src="${iconUrl('minimap.svg')}" alt="Minimap"></button>
     </div>
     <div class="cg-bar-right">
-      <button class="cg-btn cg-search" data-action="search" title="Search" aria-label="Search" style="display:none;">⌕</button>
+      <button class="cg-btn cg-search" data-action="search" title="Search" aria-label="Search" style="display:none;"><img class="cg-icon" src="${iconUrl('search.svg')}" alt="Search"></button>
       <div class="cg-opacity" title="Opacity">
         <span style="font-size:12px; opacity:.85;">α</span>
         <input data-action="opacity" type="range" min="0.25" max="1" step="0.05" value="${state.opacity}">
       </div>
-      <button class="cg-btn" data-action="controls" title="Controls">🧰</button>
-      <button class="cg-btn" data-action="hideToolbar" title="Hide toolbar">▾</button>
-      <button class="cg-btn" data-action="close" title="Close (Esc)">✕</button>
+      <button class="cg-btn" data-action="controls" title="Controls"><img class="cg-icon" src="${iconUrl('setting.svg')}" alt="Controls"></button>
+      <button class="cg-btn" data-action="hideToolbar" title="Hide toolbar"><img class="cg-icon" src="${iconUrl('down.svg')}" alt="Hide"></button>
+      <button class="cg-btn" data-action="close" title="Close (Esc)"><img class="cg-icon" src="${iconUrl('close.svg')}" alt="Close"></button>
     </div>
   `.trim();
 
@@ -627,11 +647,11 @@ function buildPanel(state, setState, getState) {
   miniBar.className = 'cg-mini-bar';
   miniBar.innerHTML = `
     <div class="cg-mini-left">
-      <button class="cg-btn cg-mini-search" data-action="search" title="Search" aria-label="Search" style="display:none;">⌕</button>
+      <button class="cg-btn cg-mini-search" data-action="search" title="Search" aria-label="Search" style="display:none;"><img class="cg-icon" src="${iconUrl('search.svg')}" alt="Search"></button>
     </div>
     <div class="cg-mini-right">
-      <button class="cg-btn" data-action="showToolbar" title="Show toolbar" aria-label="Show toolbar">☰</button>
-      <button class="cg-btn" data-action="close" title="Close">✕</button>
+      <button class="cg-btn" data-action="showToolbar" title="Show toolbar" aria-label="Show toolbar"><img class="cg-icon" src="${iconUrl('control.svg')}" alt="Show"></button>
+      <button class="cg-btn" data-action="close" title="Close"><img class="cg-icon" src="${iconUrl('close.svg')}" alt="Close"></button>
     </div>
   `.trim();
 
@@ -657,13 +677,13 @@ function buildPanel(state, setState, getState) {
       <div class="cg-popover-left">
         <span class="cg-popover-label">View</span>
         <div class="cg-view-toggle" role="tablist" aria-label="View mode">
-          <button class="cg-view-btn" data-action="view" data-mode="graph" title="Graph">🗺️</button>
-          <button class="cg-view-btn" data-action="view" data-mode="tree" title="Tree">🌿</button>
+          <button class="cg-view-btn" data-action="view" data-mode="graph" title="Graph"><img class="cg-icon" src="${iconUrl('graph.svg')}" alt="Graph"></button>
+          <button class="cg-view-btn" data-action="view" data-mode="tree" title="Tree"><img class="cg-icon" src="${iconUrl('tree.svg')}" alt="Tree"></button>
         </div>
       </div>
       <div class="cg-popover-right">
-        <button class="cg-btn" data-action="refresh" title="Refresh">🔄</button>
-        <button class="cg-btn" data-action="closePopover" title="Close">✕</button>
+        <button class="cg-btn" data-action="refresh" title="Refresh"><img class="cg-icon" src="${iconUrl('fresh.svg')}" alt="Refresh"></button>
+        <button class="cg-btn" data-action="closePopover" title="Close"><img class="cg-icon" src="${iconUrl('close.svg')}" alt="Close"></button>
       </div>
     </div>
     <div class="cg-popover-row">
@@ -675,7 +695,7 @@ function buildPanel(state, setState, getState) {
         </div>
       </div>
       <div class="cg-popover-right">
-        <button class="cg-btn" data-action="toggleToolbar" title="Toggle toolbar">🧰</button>
+        <button class="cg-btn" data-action="toggleToolbar" title="Toggle toolbar"><img class="cg-icon" src="${iconUrl('control.svg')}" alt="Toolbar"></button>
       </div>
     </div>
     <div class="cg-popover-row">
@@ -683,10 +703,10 @@ function buildPanel(state, setState, getState) {
         <span class="cg-popover-label">Window</span>
       </div>
       <div class="cg-popover-right">
-        <button class="cg-btn" data-action="lock" title="Lock / Unlock (Alt+Shift+L)">📌</button>
-        <button class="cg-btn" data-action="through" title="Click-through (Alt+Shift+T)">🫥</button>
-        <button class="cg-btn" data-action="minimize" title="Minimize / Restore">—</button>
-        <button class="cg-btn" data-action="close" title="Close (Esc)">✕</button>
+        <button class="cg-btn" data-action="lock" title="Lock / Unlock (Alt+Shift+L)"><img class="cg-icon" src="${iconUrl('stick.svg')}" alt="Lock"></button>
+        <button class="cg-btn" data-action="through" title="Click-through (Alt+Shift+T)"><img class="cg-icon" src="${iconUrl('transparency.svg')}" alt="Click-through"></button>
+        <button class="cg-btn" data-action="minimize" title="Minimize / Restore"><img class="cg-icon" src="${iconUrl('minimize.svg')}" alt="Minimize"></button>
+        <button class="cg-btn" data-action="close" title="Close (Esc)"><img class="cg-icon" src="${iconUrl('close.svg')}" alt="Close"></button>
       </div>
     </div>
   `.trim();
@@ -723,12 +743,14 @@ function buildPanel(state, setState, getState) {
   };
 
   // ------------------------------------------------------------
-  // Quick UI state (tree search collapsed)
+  // Quick UI state (tree search collapsed, minimap visibility)
   // ------------------------------------------------------------
   const headerSearchBtn = header.querySelector('[data-action="search"]');
   const miniSearchBtn = miniBar.querySelector('[data-action="search"]');
+  const headerMinimapBtn = header.querySelector('[data-action="minimap"]');
   let currentViewMode = 'graph';
   let treeToolbarCollapsed = false;
+  let minimapVisible = false;
 
   // ------------------------------------------------------------
   // Header responsiveness: overflow-driven + hysteresis
@@ -855,6 +877,14 @@ function buildPanel(state, setState, getState) {
     }
   };
 
+  const updateMinimapButton = () => {
+    if (headerMinimapBtn) {
+      // Only show minimap button in graph mode
+      headerMinimapBtn.style.display = currentViewMode === 'graph' ? 'inline-flex' : 'none';
+      headerMinimapBtn.classList.toggle('cg-active', minimapVisible);
+    }
+  };
+
   // Let applyState call back into this so visibility updates whenever controls are hidden/shown.
   panel.__cgAfterApplyState = (s) => {
     updateSearchButtons(s);
@@ -872,12 +902,14 @@ function buildPanel(state, setState, getState) {
     // Update tree-search-expanded class based on current view mode
     panel.classList.toggle('cg-tree-search-expanded', !treeToolbarCollapsed && currentViewMode === 'tree');
     updateSearchButtons();
+    updateMinimapButton();
     scheduleCompactUpdate();
   };
 
   // Try to sync initial view mode from the embedded UI
   iframe.addEventListener('load', () => {
     postToIframe('CG_REQUEST_VIEW_MODE', {});
+    postToIframe('CG_REQUEST_MINIMAP_STATE', {});
     // Send initial controls state
     const s = getState();
     const effectiveHidden = !!s.controlsHidden || !!s.locked || !!s.clickThrough;
@@ -900,6 +932,12 @@ function buildPanel(state, setState, getState) {
       panel.classList.toggle('cg-tree-search-expanded', !treeToolbarCollapsed && currentViewMode === 'tree');
       updateSearchButtons();
       scheduleCompactUpdate();
+    }
+
+    // Handle minimap visibility state from iframe
+    if (data.type === 'CG_MINIMAP_STATE') {
+      minimapVisible = !!data.payload?.visible;
+      updateMinimapButton();
     }
 
     // Handle request to show the main toolbar (from embedded search bar)
@@ -981,6 +1019,14 @@ function buildPanel(state, setState, getState) {
     btn.addEventListener('click', () => {
       closePopover();
       postToIframe('CG_REFRESH', {});
+    });
+  });
+
+  // Minimap toggle button
+  panel.querySelectorAll('[data-action="minimap"]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      postToIframe('CG_TOGGLE_MINIMAP', {});
     });
   });
 

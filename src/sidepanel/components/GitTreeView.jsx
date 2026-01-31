@@ -13,6 +13,8 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+const iconUrl = (name) => chrome.runtime.getURL(`assets/${name}`);
+
 const IS_EMBEDDED = (() => {
   try {
     return new URLSearchParams(window.location.search).get('embedded') === '1';
@@ -841,7 +843,9 @@ export default function GitTreeView({
   if (!qaTree || !qaTree.root) {
     return (
       <div className="git-tree-empty">
-        <div className="git-tree-empty-icon">🌿</div>
+        <div className="git-tree-empty-icon">
+          <img src={iconUrl('tree.svg')} alt="Tree" style={{ width: '48px', height: '48px', opacity: 0.5 }} />
+        </div>
         <div className="git-tree-empty-title">No data</div>
         <div className="git-tree-empty-sub">Open a conversation to see the QA tree.</div>
       </div>
@@ -922,7 +926,7 @@ export default function GitTreeView({
                   aria-label="Graph"
                   type="button"
                 >
-                  🗺️
+                  <img className="toolbar-icon" src={iconUrl('graph.svg')} alt="Graph" />
                 </button>
                 <button
                   className={'view-toggle-btn' + (viewMode === 'tree' ? ' active' : '')}
@@ -931,10 +935,12 @@ export default function GitTreeView({
                   aria-label="Tree"
                   type="button"
                 >
-                  🌿
+                  <img className="toolbar-icon" src={iconUrl('tree.svg')} alt="Tree" />
                 </button>
               </div>
+            </div>
 
+            <div className="git-toolbar-row1-right">
               <button
                 className="refresh-btn icon-btn"
                 onClick={onRefresh}
@@ -943,11 +949,10 @@ export default function GitTreeView({
                 aria-label="Refresh"
                 type="button"
               >
-                <span className={isLoading ? 'spinning' : ''}>🔄</span>
+                <span className={isLoading ? 'spinning' : ''}>
+                  <img className="toolbar-icon" src={iconUrl('fresh.svg')} alt="Refresh" />
+                </span>
               </button>
-            </div>
-
-            <div className="git-toolbar-row1-right">
               <button
                 type="button"
                 className={'git-collapse-btn' + (toolbarCollapsed ? ' collapsed' : '')}
@@ -955,7 +960,7 @@ export default function GitTreeView({
                 title={toolbarCollapsed ? 'Show search & filters' : 'Hide search & filters'}
                 aria-label={toolbarCollapsed ? 'Show search & filters' : 'Hide search & filters'}
               >
-                {toolbarCollapsed ? '☰' : '▾'}
+                <img className="toolbar-icon" src={iconUrl(toolbarCollapsed ? 'up.svg' : 'down.svg')} alt={toolbarCollapsed ? 'Expand' : 'Collapse'} />
               </button>
             </div>
           </div>
@@ -965,7 +970,9 @@ export default function GitTreeView({
         {!toolbarCollapsed && (
           <div className="git-toolbar-row git-toolbar-row2">
             <div className="git-search">
-              <span className="git-search-icon">⌕</span>
+              <span className="git-search-icon">
+                <img src={iconUrl('search.svg')} alt="Search" style={{ width: '14px', height: '14px', opacity: 0.6 }} />
+              </span>
               <input
                 className="git-search-input"
                 ref={searchInputRef}
@@ -1093,7 +1100,11 @@ export default function GitTreeView({
                   title="Hide search & filters"
                   aria-label="Hide search & filters"
                 >
-                  ▴
+                  <img 
+                    className="toolbar-icon" 
+                    src={iconUrl('up.svg')} 
+                    alt="Collapse" 
+                  />
                 </button>
               )}
 
@@ -1114,7 +1125,7 @@ export default function GitTreeView({
                     title="Show toolbar"
                     aria-label="Show toolbar"
                   >
-                    ☰
+                    <img className="toolbar-icon" src={iconUrl('control.svg')} alt="Show" />
                   </button>
                   <button
                     type="button"

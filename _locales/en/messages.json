@@ -315,10 +315,10 @@
     "message": "• Do not share your token with others"
   },
   "tokenAlreadyConfigured": {
-    "message": "✓ You already have a valid token configured. To update, please enter a new token."
+    "message": "You already have a valid token configured. To update, please enter a new token."
   },
   "tokenExpiredPleaseUpdate": {
-    "message": "⚠️ Your token has expired, please get a new token."
+    "message": "Your token has expired, please get a new token."
   },
   "tokenEmpty": {
     "message": "Token cannot be empty"
@@ -331,6 +331,15 @@
   },
   "tokenInvalidJWT": {
     "message": "Token format is incorrect, JWT token should have three parts"
+  },
+  "sidepanelZoomTitle": {
+    "message": "Sidepanel Zoom"
+  },
+  "sidepanelZoomLabel": {
+    "message": "Zoom Percentage:"
+  },
+  "reset": {
+    "message": "reset"
   },
   "tokenValidationSuccess": {
     "message": "✓ Token validation successful!<br>Account: $EMAIL$",
@@ -387,7 +396,7 @@
     "message": "Language:"
   },
   "openGraphBtn": {
-    "message": "Open Graph View"
+    "message": "Open Sidebar"
   },
 
   "collapseSettingsTitle": {
@@ -415,7 +424,7 @@
     "message": "Expand"
   },
   "openFloatingBtn": {
-    "message": "Floating Window"
+    "message": "Open Floating Window"
   },
 
   "waitingForToken": {

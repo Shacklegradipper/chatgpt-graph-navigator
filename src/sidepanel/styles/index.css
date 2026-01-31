@@ -108,14 +108,14 @@ html, body {
   align-items: center;
   gap: 2px;
   padding: 2px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
+  background: rgba(241, 245, 249, 0.92);
+  border: 1px solid rgba(15, 23, 42, 0.10);
   border-radius: 10px;
 }
 
 .view-toggle-btn {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border: none;
   background: transparent;
   border-radius: 8px;
@@ -126,6 +126,27 @@ html, body {
   align-items: center;
   justify-content: center;
   transition: background-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.toolbar-icon {
+  width: 16px;
+  height: 16px;
+  opacity: 0.65;
+  transition: opacity 0.15s ease;
+}
+
+.view-toggle-btn:hover .toolbar-icon,
+.icon-btn:hover .toolbar-icon,
+.minimap-btn:hover .toolbar-icon,
+.refresh-btn:hover .toolbar-icon,
+.git-collapse-btn:hover .toolbar-icon {
+  opacity: 0.9;
+}
+
+.view-toggle-btn.active .toolbar-icon,
+.icon-btn.active .toolbar-icon,
+.minimap-btn.active .toolbar-icon {
+  opacity: 1;
 }
 
 .view-toggle-btn:hover {
@@ -167,52 +188,48 @@ html, body {
 }
 
 .refresh-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.86);
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 16px;
-  display: flex;
+  font-size: 14px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s;
+  flex-shrink: 0;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 /* MiniMap toggle button (left of refresh) */
 .minimap-btn {
-  width: 32px;
-  height: 32px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #e2e8f0;
+  background: rgba(255, 255, 255, 0.86);
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 16px;
-  display: flex;
+  font-size: 14px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s, box-shadow 0.2s;
+  flex-shrink: 0;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 
-.minimap-btn:hover {
-  background-color: #f1f5f9;
+.minimap-btn:hover,
+.refresh-btn:hover {
+  background: rgba(248, 250, 252, 0.96);
+  border-color: rgba(15, 23, 42, 0.18);
 }
 
 .minimap-btn.active {
-  background-color: #eef2ff;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.16);
+  border-color: rgba(37, 99, 235, 0.45);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
 }
 
-.minimap-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.refresh-btn:hover {
-  background-color: #f1f5f9;
-}
-
+.minimap-btn:disabled,
 .refresh-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -237,8 +254,10 @@ html, body {
 
 /* ==================== 图谱容器 ==================== */
 .graph-container {
+  width: 100%;
+  height: 100%;
+  min-height: 200px;
   background: #fafafa;
-  /* 高度由 JavaScript 动态设置 */
 }
 
 /* React Flow 覆盖样式 */
@@ -510,6 +529,9 @@ html, body {
   font-size: 64px;
   margin-bottom: 16px;
   opacity: 0.5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .empty-state h2 {
@@ -925,23 +947,23 @@ html, body {
 }
 
 .git-collapse-btn {
-  width: var(--git-btn-size, 28px);
-  height: var(--git-btn-size, 28px);
+  width: 28px;
+  height: 28px;
   border: 1px solid #e2e8f0;
-  background: #f8fafc;
-  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.86);
+  border-radius: 8px;
   cursor: pointer;
-  color: #475569;
+  font-size: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 .git-collapse-btn:hover {
-  background: #ffffff;
-  border-color: #cbd5e1;
+  background: rgba(248, 250, 252, 0.96);
+  border-color: rgba(15, 23, 42, 0.18);
 }
 
 /* Show toolbar button (hamburger menu) - only visible when controls are hidden in embedded mode */
@@ -1068,9 +1090,9 @@ html, body {
 
 
 .git-search-icon {
-  font-size: 12px;
-  color: #64748b;
-  opacity: 0.9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
@@ -1440,6 +1462,9 @@ html, body {
 
 .git-tree-empty-icon {
   font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .git-tree-empty-title {

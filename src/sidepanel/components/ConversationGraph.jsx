@@ -7,7 +7,6 @@ import {
   ReactFlow,
   Controls,
   MiniMap,
-  Panel,
   Background,
   useNodesState,
   useEdgesState,
@@ -41,6 +40,25 @@ const IS_EMBEDDED = new URLSearchParams(window.location.search).get('embedded') 
 
 const MINIMAP_HANDLE_HEIGHT = 18;
 const MINIMAP_POS_KEY = 'cg:minimap:pos';
+const MINIMAP_WIDTH = 160;
+const MINIMAP_HEIGHT = 120;
+const MINIMAP_MARGIN = 10; // 小地图距离容器边缘的最小距离
+
+/**
+ * 将小地图 offset 限制在容器可视范围内
+ * 小地图默认位置是 bottom-left，offset 是相对于这个基准的偏移
+ */
+function clampMiniMapOffset(offset, containerWidth, containerHeight) {
+  // 有效的 X 范围：0 到 (容器宽度 - 小地图宽度 - 左右边距)
+  const maxX = Math.max(0, containerWidth - MINIMAP_WIDTH - MINIMAP_MARGIN * 2);
+  // 有效的 Y 范围：-(容器高度 - 小地图高度 - 上下边距) 到 0
+  const minY = Math.min(0, -(containerHeight - MINIMAP_HEIGHT - MINIMAP_MARGIN * 2));
+
+  return {
+    x: Math.max(0, Math.min(maxX, offset.x)),
+    y: Math.max(minY, Math.min(0, offset.y))
+  };
+}
 
 /**
  * 图谱内部组件（需要 ReactFlow context）
@@ -52,7 +70,6 @@ function GraphContent({
   onNodeClick,
   onNodeDoubleClick,
   onNodeContextMenu,
-  containerHeight,
   graphContainerRef,
   showMiniMap,
   onToggleMiniMap
@@ -81,6 +98,43 @@ function GraphContent({
   useEffect(() => {
     miniMapOffsetRef.current = miniMapOffset;
   }, [miniMapOffset]);
+
+  // 监听容器尺寸变化，自动修正小地图位置
+  useEffect(() => {
+    if (IS_EMBEDDED || !showMiniMap) return;
+
+    const container = graphContainerRef?.current;
+    if (!container) return;
+
+    const checkAndClampOffset = () => {
+      const { width, height } = container.getBoundingClientRect();
+      if (width <= 0 || height <= 0) return;
+
+      const currentOffset = miniMapOffsetRef.current;
+      const clampedOffset = clampMiniMapOffset(currentOffset, width, height);
+
+      // 只有当位置真的需要修正时才更新
+      if (clampedOffset.x !== currentOffset.x || clampedOffset.y !== currentOffset.y) {
+        setMiniMapOffset(clampedOffset);
+        try {
+          localStorage.setItem(MINIMAP_POS_KEY, JSON.stringify(clampedOffset));
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    // 初始检查
+    checkAndClampOffset();
+
+    // 监听容器尺寸变化
+    const resizeObserver = new ResizeObserver(checkAndClampOffset);
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [showMiniMap, graphContainerRef]);
 
   // Draggable minimap (sidebar mode only)
   useEffect(() => {
@@ -138,10 +192,26 @@ function GraphContent({
       if (!drag.dragging) return;
       drag.dragging = false;
       panel.classList.remove('cg-minimap-dragging');
-      try {
-        localStorage.setItem(MINIMAP_POS_KEY, JSON.stringify(miniMapOffsetRef.current));
-      } catch {
-        // ignore
+
+      // 拖动结束时进行边界检查
+      const container = graphContainerRef?.current;
+      if (container) {
+        const { width, height } = container.getBoundingClientRect();
+        const clampedOffset = clampMiniMapOffset(miniMapOffsetRef.current, width, height);
+        if (clampedOffset.x !== miniMapOffsetRef.current.x || clampedOffset.y !== miniMapOffsetRef.current.y) {
+          setMiniMapOffset(clampedOffset);
+        }
+        try {
+          localStorage.setItem(MINIMAP_POS_KEY, JSON.stringify(clampedOffset));
+        } catch {
+          // ignore
+        }
+      } else {
+        try {
+          localStorage.setItem(MINIMAP_POS_KEY, JSON.stringify(miniMapOffsetRef.current));
+        } catch {
+          // ignore
+        }
       }
     };
 
@@ -168,7 +238,6 @@ function GraphContent({
   const prevQaTreeRef = useRef(null);
   const prevSelectedPathRef = useRef(null);
   const prevCurrentNodeIdRef = useRef(null);
-  const prevContainerHeightRef = useRef(0);
   const prevNodeCountRef = useRef(0); // 追踪节点数量，用于判断是否真的是数据变化
 
   // DEBUG: 监控视口变化
@@ -198,18 +267,6 @@ function GraphContent({
       return next;
     });
   }, []);
-
-  // 当容器高度变化时，重新适应视图
-  useEffect(() => {
-    // 只在容器高度真正变化时才 fitView
-    if (containerHeight > 0 && nodes.length > 0 && prevContainerHeightRef.current !== containerHeight) {
-      console.log('[Graph DEBUG] containerHeight changed:', prevContainerHeightRef.current, '->', containerHeight, '=> calling fitView');
-      prevContainerHeightRef.current = containerHeight;
-      setTimeout(() => {
-        fitView({ padding: 0.2, duration: 300 });
-      }, 100);
-    }
-  }, [containerHeight, fitView, nodes.length]);
 
   // 当 QA 树、选中路径或展开状态变化时，更新图谱
   useEffect(() => {
@@ -325,21 +382,6 @@ function GraphContent({
         showInteractive={false}
         position="bottom-right"
       />
-      {/* Embedded (floating panel) has no top header, so we keep a small toggle here.
-          Sidepanel uses the header button (left of refresh). */}
-      {IS_EMBEDDED && typeof onToggleMiniMap === 'function' && (
-        <Panel position="top-left" className="cg-graph-toolbar">
-          <button
-            className={`cg-toolbar-btn ${showMiniMap ? 'active' : ''}`}
-            onClick={onToggleMiniMap}
-            title={showMiniMap ? 'Hide minimap' : 'Show minimap'}
-            aria-label={showMiniMap ? 'Hide minimap' : 'Show minimap'}
-            type="button"
-          >
-            🧭
-          </button>
-        </Panel>
-      )}
 
       {showMiniMap && (
         <MiniMap
@@ -379,32 +421,11 @@ function ConversationGraph({
   onToggleMiniMap
 }) {
   const containerRef = useRef(null);
-  const [containerHeight, setContainerHeight] = useState(400);
-
-  // 动态计算容器高度
-  useEffect(() => {
-    const updateHeight = () => {
-      const height = window.innerHeight - 56;
-      setContainerHeight(Math.max(height, 200));
-    };
-
-    updateHeight();
-    window.addEventListener('resize', updateHeight);
-
-    return () => {
-      window.removeEventListener('resize', updateHeight);
-    };
-  }, []);
 
   return (
     <div
       ref={containerRef}
       className="graph-container"
-      style={{
-        width: '100%',
-        height: `${containerHeight}px`,
-        minHeight: '200px'
-      }}
     >
       <ReactFlowProvider>
         <GraphContent
@@ -414,7 +435,6 @@ function ConversationGraph({
           onNodeClick={onNodeClick}
           onNodeDoubleClick={onNodeDoubleClick}
           onNodeContextMenu={onNodeContextMenu}
-          containerHeight={containerHeight}
           graphContainerRef={containerRef}
           showMiniMap={showMiniMap}
           onToggleMiniMap={onToggleMiniMap}
