@@ -1,169 +1,261 @@
-# ChatGPT Graph Extension
+<div align="center">
+<img src="docs/pic/icon256.png" alt="ChatGPT Graph" width="128" />
+<br>
 
-> 一个将ChatGPT对话转换为可导航知识图谱的Chrome扩展程序：支持非线性思维探索，可视化分支，跳转到任何节点，折叠长消息，用文件夹/标签组织聊天，并导出线程到Markdown/HTML/PDF/JSON—使非线性思维保持可搜索、可分享和可重用。
+  <h1>ChatGPT Graph Navigator</h1>
+  <h3>A Browser Extension: Map your conversations. Navigate your thoughts.</h3>
 
-> A Chrome extension that turns ChatGPT conversations into a navigable knowledge graph: visualize branches, jump to any node, fold long messages, organize chats with folders/tags, and export threads to Markdown/HTML/PDF/JSON—so nonlinear thinking stays searchable, shareable, and reusable.
+<p>
+  <img alt="Chrome" src="https://img.shields.io/badge/Chrome-Extension-blue?logo=googlechrome&logoColor=white" />
+  <img alt="Manifest" src="https://img.shields.io/badge/Manifest-V3-10b981" />
+  <img alt="React" src="https://img.shields.io/badge/React-18-61dafb?logo=react&logoColor=white" />
+  <img alt="XYFlow" src="https://img.shields.io/badge/XYFlow-React%20Flow-111827" />
+</p>
 
-## 项目概述
+<table>
+  <tr>
+    <td align="center" width="200">
+      <img src="/docs/pic/graph.svg" width="45" height="45" alt="Graph View Icon" />
+    </td>
+    <td align="center" width="200">
+      <img src="/docs/pic/timeline.svg" width="45" height="45" alt="Timeline Tree Icon" />
+    </td>
+    <td align="center" width="200">
+      <img src="/docs/pic/tool.svg" width="45" height="45" alt="Workflow Utils Icon" />
+    </td>
+  </tr>
 
-这是一个 Chrome 扩展，用于可视化 ChatGPT 对话中的分支结构，帮助用户：
-- 从任意节点开启新的分支讨论
-- 并行探索多个问题方向
-- 快速定位和回溯对话节点
-- 以图谱形式组织和管理对话
+  <tr>
+    <td align="center">
+      <strong>Graph View</strong>
+    </td>
+    <td align="center">
+      <strong>Timeline Tree</strong>
+    </td>
+    <td align="center">
+      <strong>Workflow Utils</strong>
+    </td>
+  </tr>
 
-## 当前版本：V0.1
+  <tr>
+    <td align="center">
+      <sub>Spatial visualization <br> for logical overview</sub>
+    </td>
+    <td align="center">
+      <sub>Git-style history with<br>branch navigation</sub>
+    </td>
+    <td align="center">
+      <sub>Message folding<br>& more to come</sub>
+    </td>
+  </tr>
+</table>
 
-### 已实现功能
-- ✅ Content Script：API 调用和 mapping 树获取
-- ✅ Service Worker：IndexedDB 数据持久化
-- ✅ 简易调试界面
+  <h4>
+    ✨ Visualize your chat history as an interactive tree graph.<br>
+    The professional mind-map interface for navigating ChatGPT conversations.
+  </h4>
 
-### 开发中功能
-- 🚧 图谱可视化渲染
-- 🚧 节点搜索和过滤
-- 🚧 分支切换和管理
 
-## 项目结构
+<p align="center">
+  <a href="#features">Features</a>
+  &nbsp;·&nbsp;
+  <a href="#installation">Installation</a>
+  &nbsp;·&nbsp;
+  <a href="#local-development">Local Development</a>
+  &nbsp;·&nbsp;
+  <a href="#roadmap">Roadmap</a>
+</p>
 
+</div>
+
+## Why Linear Chat Isn't Enough?
+
+Complex problem-solving is rarely a straight line. It involves hypotheses, trial and error, and exploring multiple possibilities simultaneously. However, a standard linear chat forces all these distinct thought processes into a single, cluttered timeline.
+
+* **📉 The "Context Pollution" Problem:** When you test different approaches sequentially in one thread, irrelevant contexts and failed attempts accumulate. This "noise" distracts the model, consuming token limits and interfering with its ability to provide the most accurate analysis for your current strategy.
+* **🔀 The Need for Parallel Exploration:** To get the best results, you often need to fork the conversation—editing prompts or regenerating answers to test distinct paths. In a linear interface, managing these "parallel universes" is chaotic. You lose track of where ideas diverged and which branch yielded the best result.
+* **🧠 Cognitive Overload:** Trying to mentally reconstruction the relationship between a prompt sent 20 minutes ago and a new variation you just wrote is exhausting.
+
+**ChatGPT Graph Navigator solves this.** We visualize your branches, helping you isolate contexts for cleaner model outputs while keeping your entire reasoning structure organized.
+
+<br>
+
+<h2 id="features">✨ Features</h2>
+
+<div align="center">
+  <img src="docs/pic/main_feature.png" width="80%" style="max-width: 800px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);" alt="main feature" />
+</div>
+
+### Key capabilities at a glance:
+
+* **🎨 Flexible UI Modes:** Use the **Sidebar** for a persistent, immersive workflow, or the **Floating Window** for quick, on-demand visualization.
+* **👁️ Dual Visualization:**
+    * **Graph View:** A 2D mind-map structure to understand the "big picture" and logic flow.
+    * **Timeline Tree:** A Git-style vertical tree for tracking granular changes and edits.
+* **⚡ Instant Navigation:** Click any node to **jump directly** to that specific message in any branch, instantly restoring the context.
+* **🔍 Power Search:** Quickly locate specific prompts or answers across the entire conversation tree.
+* **🛠️ Workflow Utilities:** Includes message auto-folding and plans for more efficiency tools (export, formatting, etc.).
+
+### 🌲 The Integrated Sidebar: Your Conversation Command Center
+*Navigate complex threads without ever leaving your chat context.*
+
+<div align="center">
+  <img src="docs/pic/sidepanel.gif" width="80%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" alt="Sidebar Navigation Demo" />
+</div>
+
+<br>
+
+The sidebar is designed for efficiency, offering two distinct modes to suit your workflow:
+
+#### 1. The Graph Mode
+*Perfect for structure and context jumping.*
+* **Spatial Control:** Zoom and pan freely to grasp the full topology of your conversation topics instantly.
+* **One-Click Teleport:** See a node you want to revisit? Click any message node in the graph to **instantly jump** to that exact moment in any branch, restoring its context immediately.
+
+#### 2. The Smart Timeline Mode
+*Perfect for precision and content retrieval.*
+* **Focused Filtering:** Too much noise? Toggle filters to show **Q&A**, **Questions Only**, or **Answers Only**. Great for skimming through your prompt history.
+* **Instant Search:** Don't scroll endlessly. Use the built-in search bar to locate specific keywords and jump directly to the target message.
+
+### 🧠 The Floating Window: On-Demand Overlay
+*A lightweight, movable window designed for multitasking.*
+
+* 🚀 Draggable & Resizable & Access the full Graph/Timeline views anywhere on your screen.
+* **👻 Ghost Mode:** Enable **"Click-Through"** to interact with the page behind the transparency.
+* **📌 Pin & Blend:** Keep the window **Always-on-Top** and adjust **Opacity** to fit your workflow.
+
+<div align="center">
+  <img src="docs/pic/float_main.png" width="60%" style="max-width: 800px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1);" alt="Floating Window Demo" />
+</div>
+
+### 🛠️ Workflow Utilities
+We are continuously optimizing the details to improve your efficiency.
+
+* **📂 Message Auto-Folding:** Automatically or manually collapse long responses or code blocks to keep your workspace clean.
+* **🚀 Coming Soon:** We are working on **Powerful Chat Export** (Markdown/Image/Pdf).
+* **💡 Have an Idea?** We welcome feature requests! Feel free to [open an issue](https://github.com/Robbings/chatgpt-graph-navigator/issues) to let us know what you need.
+
+<br>
+<br>
+
+<h2 id="installation">📥 Installation</h2>
+
+### Option 1: Load Unpacked (For Developers & Early Adopters)
+1.  **Download:** Clone this repository or download the latest [Release](https://github.com/Robbings/chatgpt-graph-navigator/releases).
+2.  **Unzip:** Extract the downloaded file.
+3.  **Open Chrome Extensions:** Go to `chrome://extensions/` in your browser.
+4.  **Enable Developer Mode:** Toggle the switch in the top-right corner.
+5.  **Load:** Click **"Load unpacked"** and select the `dist` (or `build`) folder from your downloaded files.
+
+### Option 2: Chrome Web Store (Recommended)
+> 🚧 **Coming Soon:** We are currently reviewing our submission to the Chrome Web Store. Stay tuned!
+
+<br>
+<br>
+
+<h2 id="local-development">💻 Local Development</h2>
+
+Whether you want to fix a bug or add a new feature, we welcome contributions! Here is how to get the project running locally.
+
+### Prerequisites
+
+Ensure you have the following installed on your machine:
+
+* **[Node.js](https://nodejs.org/)** (v18 or higher)
+* **Package Manager:** [pnpm](https://pnpm.io/) (recommended), npm, or yarn
+* **Browser:** Chrome or any Chromium-based browser (Edge, Brave, Arc, etc.)
+
+### Setup & Installation
+
+1.  **Clone the repository**
+    ```bash
+    git clone https://github.com/Robbings/chatgpt-graph-navigator.git
+    cd chatgpt-graph-navigator
+    ```
+
+2.  **Install dependencies**
+    ```bash
+    npm install
+    # or if using pnpm
+    pnpm install
+    ```
+
+3.  **Start Development Mode**
+    This command starts the build process in **watch mode**. Any changes you make to the source files will trigger an automatic rebuild.
+    
+    ```bash
+    npm run dev
+    ```
+    
+    > **Note:** Keep this terminal window open while developing to ensure your changes are compiled in real-time.
+    
+4.  **Build for Production**
+    ```bash
+    npm run build
+    ```
+
+
+### Project Structure
+
+Here is a quick overview of the codebase to help you navigate:
+
+```text
+├── src/
+│   ├── background/         # Service worker (handles events & context menus)
+│   ├── content/            # Scripts injected into the ChatGPT page
+│   │   ├── ui/             # React components for Floating Panel & Sidebar
+│   │   ├── observers/      # DOM observers (detects new messages)
+│   │   └── parser/         # Logic to parse chat HTML into Graph data
+│   └── sidepanel/          # The standalone Side Panel application
+│       ├── components/     # Reusable UI components
+│       ├── hooks/          # Custom React hooks
+│       └── styles/         # Global styles and Tailwind config
+├── dist/                   # Compiled output (auto-generated)
+├── assets/                 # Icons and static images
+├── _locales/               # i18n translation files
+├── manifest.json           # Extension configuration
+└── build.js                # esbuild configuration script
 ```
-chatgpt_extension/
-├── docs/                      # 文档目录
-│   ├── architecture.md       # 架构设计文档
-│   └── development.md        # 开发指南
-├── src/                      # 源代码
-│   ├── content/             # Content Script（页面注入）
-│   │   ├── index.js         # 入口文件
-│   │   ├── api/             # API 调用模块
-│   │   │   └── conversation.js
-│   │   ├── parser/          # 数据解析模块
-│   │   │   ├── mapping-parser.js
-│   │   │   └── branch-extractor.js
-│   │   ├── observer/        # DOM 监听模块
-│   │   │   └── mutation-observer.js
-│   │   └── utils/           # 工具函数
-│   │       └── dom-helper.js
-│   ├── background/          # Service Worker（后台服务）
-│   │   ├── index.js         # 入口文件
-│   │   ├── database/        # 数据库操作
-│   │   │   ├── db.js        # IndexedDB 封装
-│   │   │   └── schema.js    # 数据库 Schema
-│   │   ├── cache/           # 缓存策略
-│   │   │   └── cache-manager.js
-│   │   └── messaging/       # 消息中转
-│   │       └── message-handler.js
-│   ├── sidepanel/           # Side Panel（侧边栏 UI）
-│   │   ├── index.html       # 界面
-│   │   ├── index.js         # 逻辑
-│   │   └── styles.css       # 样式
-│   └── shared/              # 共享代码
-│       ├── constants.js     # 常量定义
-│       ├── types.js         # 类型定义（JSDoc）
-│       └── utils.js         # 通用工具函数
-├── assets/                   # 资源文件
-├── manifest.json            # 扩展配置
-├── package.json             # 依赖管理
-└── README.md               # 项目说明
-```
 
-## 核心模块
+<br>
+<br>
 
-### 1. Content Script
-**职责**：页面数据采集和监听
-- 调用 ChatGPT API 获取对话 mapping 树
-- 解析分支结构
-- 监听页面变化（MutationObserver）
-- 发送数据到 Service Worker
+<h2 id="roadmap">🗺️ Roadmap</h2>
 
-### 2. Service Worker
-**职责**：数据管理和消息中转
-- IndexedDB 数据持久化
-- 缓存策略管理
-- Content Script ↔ Side Panel 消息中转
+We have exciting plans to turn this tool into a comprehensive Knowledge Management System for AI conversations.
 
-### 3. Side Panel
-**职责**：用户界面（V0.1 为简易调试界面）
-- 显示 mapping 树结构
-- 显示日志和调试信息
-- 后续实现图谱可视化
+#### ✅ Completed
+- [x] **Core:** Interactive Graph View & Git-Style Timeline.
+- [x] **UI:** Integrated Sidebar & Floating Window modes.
+- [x] **Utils:** Message auto-folding for clean workspace.
 
-## 快速开始
+#### 🚧 In Progress & Planned
 
-### 安装依赖
-```bash
-npm install
-```
+**1. Advanced Annotation**
+- [ ] **Node Highlighting:** Mark specific nodes with custom colors (e.g., "Important", "To-Do", "Wrong") to visually categorize information.
+- [ ] **Branch Bookmarking:** "Star" or "Pin" specific conversation branches for quick retrieval later.
 
-### 开发模式
-1. 在 Chrome 中打开 `chrome://extensions/`
-2. 启用"开发者模式"
-3. 点击"加载已解压的扩展程序"
-4. 选择项目根目录
+**2. Graph Editing & Restructuring**
+- [ ] **Pruning:** Delete unwanted nodes or remove entire branches to keep the context clean.
+- [ ] **Custom Linking:** Manually create edges between any two nodes—even across different branches—to build your own logical connections independent of the original chat flow.
 
-### 调试
-1. 打开 ChatGPT 页面
-2. 打开 Chrome DevTools
-3. 查看 Console 输出（Content Script 日志）
-4. 点击扩展图标打开 Side Panel（UI 日志）
+**3. Global Knowledge Graph**
+> **The Ultimate Goal:** Moving beyond single chats.
+- [ ] **Cross-Conversation View:** Visualize multiple chat sessions in a single workspace.
+- [ ] **Project-Level Management:** Group related conversations into "Projects" and manage their relationships in a unified graph.
 
-## 数据结构
+**4. More Utilities**
+- [ ] **Export:** Save charts as Markdown, JSON, or HD Images.
+- [ ] **Global Search:** Search keywords across all nodes and branches.
+- [ ] **Formula Support:** One-click copy for LaTeX formulas.
 
-### Mapping Node
-```javascript
-{
-  id: string,
-  message: {
-    role: 'user' | 'assistant' | 'system',
-    content: { parts: string[] },
-    create_time: number
-  },
-  parent: string | null,
-  children: string[]
-}
-```
+<h2 id="contributing">🤝 Contributing</h2>
 
-### Round（轮次）
-```javascript
-{
-  id: string,
-  conversationId: string,
-  userMessageId: string,
-  assistantMessageId: string | null,
-  parentRoundId: string | null,
-  createTime: number
-}
-```
+We welcome all contributions!
+Please feel free to **[Open an Issue](https://github.com/Robbings/chatgpt-graph-navigator/issues)** for bugs & feature requests, or **Submit a PR**.
 
-## 技术栈
+## 📄 License
 
-- **Manifest Version**: V3
-- **数据库**: IndexedDB
-- **UI 框架**: 原生 JavaScript (V0.1)，后续考虑 React
-- **图谱库**: 规划使用 Cytoscape.js 或 Sigma.js
+<img src="https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat-square" alt="GPLv3 License">
 
-## 开发规范
-
-### 代码风格
-- 使用 ES6+ 语法
-- 异步操作使用 async/await
-- 函数命名：驼峰命名法
-- 常量命名：大写下划线
-
-### 提交规范
-- `feat:` 新功能
-- `fix:` 修复 Bug
-- `docs:` 文档更新
-- `refactor:` 代码重构
-- `test:` 测试相关
-
-## 文档
-
-详细文档请参考 `docs/` 目录：
-- [架构设计](docs/architecture.md)
-- [开发指南](docs/development.md)
-- [需求文档](docs/auto-generated/单会话图谱需求总结.md)
-- [API 分析](docs/auto-generated/API测试结果.md)
-
-## License
-
-LGPL
+This project is licensed under the **GPL-3.0 License**. 
