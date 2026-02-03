@@ -4,6 +4,13 @@
 
 import { NODE_ROLES } from '../../shared/constants.js';
 import { log } from '../../shared/utils.js';
+import { processContent, hasValidContent } from './content-processor.js';
+
+// 调试开关
+const DEBUG = true;
+const debugLog = (...args) => {
+  if (DEBUG) console.log('[MappingParser]', ...args);
+};
 
 /**
  * 解析 mapping 为节点数组和边数组
@@ -13,39 +20,11 @@ import { log } from '../../shared/utils.js';
  */
 export function parseMapping(mapping, conversationId) {
   log('info', 'Parser', 'Parsing mapping...');
+  debugLog('=== parseMapping START ===');
+  debugLog('Total mapping entries:', Object.keys(mapping).length);
 
-  // ChatGPT conversation API 的 message.content 结构可能随时间演进：
-  // - { content_type: 'text', parts: ['hello'] }
-  // - { content_type: 'text', text: '...' }
-  // - { content_type: 'multimodal_text', parts: ['text', {asset_pointer: ...}] }
-  // - { content_type: 'code', text: '...' }
-  // parts 里可能混入非 string 对象（图片指针、搜索结果等），需要跳过。
-  const normalizeText = (value) => {
-    if (!value) return '';
-    if (typeof value === 'string') return value;
-    if (Array.isArray(value)) {
-      return value
-        .map(normalizeText)
-        .filter(s => s.length > 0)
-        .join('');
-    }
-    if (typeof value === 'object') {
-      // 有 parts 数组（标准 content 结构）
-      if (Array.isArray(value.parts)) {
-        return value.parts
-          .map(normalizeText)
-          .filter(s => s.length > 0)
-          .join('');
-      }
-      // 有 text 字段（code / execution_output 等）
-      if (typeof value.text === 'string') return value.text;
-      // 其他对象（图片指针、搜索结果对象等）→ 跳过，不要用 String() 转
-      return '';
-    }
-    return '';
-  };
-
-  // 需要排除的 content_type：这些是工具调用的中间产物，不是真正的对话内容
+  // 需要特殊判断的 content_type：这些是工具调用的中间产物
+  // 但如果是"最后一条回复"（后代中没有其他回复类消息），则保留
   const TOOL_CONTENT_TYPES = new Set([
     'code',
     'execution_output',
@@ -55,33 +34,144 @@ export function parseMapping(mapping, conversationId) {
     'model_editable_context',
   ]);
 
-  // 判断消息是否为有效的对话消息（排除工具调用的中间产物和空内容）
-  const isConversationMessage = (message) => {
-    if (!message) return false;
-    const role = message.author?.role;
-    if (role !== NODE_ROLES.USER && role !== NODE_ROLES.ASSISTANT) return false;
+  // ========== "最后一条回复"判断辅助函数 ==========
 
-    // assistant 消息需要进一步检查
-    if (role === NODE_ROLES.ASSISTANT) {
-      // 检查 content_type
-      const contentType = message.content?.content_type;
-      if (contentType && TOOL_CONTENT_TYPES.has(contentType)) {
-        return false;
+  /**
+   * 检查后代中(下一个USER类型之前)是否存在任何有内容的"回复类消息"
+   * 包括：assistant
+   */
+  const hasAnyReplyDescendant = (nodeId, visited = new Set()) => {
+      if (visited.has(nodeId)) return false;
+      visited.add(nodeId);
+
+      const node = mapping[nodeId];
+      if (!node) return false;
+
+      for (const childId of (node.children || [])) {
+        const childNode = mapping[childId];
+        if (!childNode) continue; // 仅防御空引用
+
+        // --- 遇到 USER 节点立即截断 --- 
+        // 可恶啊，Opus4.5 连DFS都写不好还要我自己来！
+        const childRole = childNode.message?.author?.role;
+        if (childRole === NODE_ROLES.USER) {
+            continue; 
+        }
+
+        // 1. 命中检查
+        if (childRole === NODE_ROLES.ASSISTANT) {
+          if (hasValidContent(childNode.message?.content)) {
+            return true;
+          }
+        }
+
+        // 2. 递归下探
+        // 即使当前节点是无效 Assistant 或 System/Tool，
+        // 只要没遇到 User，就继续往下找
+        if (hasAnyReplyDescendant(childId, visited)) {
+          return true;
+        }
       }
 
-      // 检查内容是否为空（空内容的 assistant 节点通常是工具调用的占位符）
-      const text = normalizeText(message.content);
-      if (!text || text.trim().length === 0) {
-        return false;
+      return false;
+    };
+
+  /**
+   * 检查后代中是否存在 user 消息
+   */
+  const hasUserDescendant = (nodeId, visited = new Set()) => {
+    if (visited.has(nodeId)) return false;
+    visited.add(nodeId);
+
+    const node = mapping[nodeId];
+    if (!node) return false;
+
+    for (const childId of (node.children || [])) {
+      const childNode = mapping[childId];
+      if (childNode?.message?.author?.role === NODE_ROLES.USER) {
+        return true;
+      }
+      if (hasUserDescendant(childId, visited)) {
+        return true;
       }
     }
 
-    return true;
+    return false;
   };
 
-  // 判断节点是否为有效节点（user 或 assistant）
-  const isValidRole = (role) => {
-    return role === NODE_ROLES.USER || role === NODE_ROLES.ASSISTANT;
+  /**
+   * 判断"回复类消息"是否应该被保留为最后一条
+   * 条件：后代中没有其他回复类消息
+   * 适用于：assistant (工具类型) 
+   */
+  const shouldKeepAsLastReply = (nodeId) => {
+    const node = mapping[nodeId];
+    if (!node?.message) {
+      debugLog(`shouldKeepAsLastReply(${nodeId.substring(0,8)}): no message`);
+      return false;
+    }
+
+    // 内容不能为空
+    const hasContent = hasValidContent(node.message.content);
+    debugLog(`shouldKeepAsLastReply(${nodeId.substring(0,8)}): hasValidContent=${hasContent}`);
+    if (!hasContent) return false;
+
+    // 如果后代中有任何其他回复类消息，则不保留
+    const hasBetterCandidate = hasAnyReplyDescendant(nodeId);
+    debugLog(`shouldKeepAsLastReply(${nodeId.substring(0,8)}): hasAnyReplyDescendant=${hasBetterCandidate}`);
+    return !hasBetterCandidate;
+  };
+
+  // ========== 核心判断函数 ==========
+
+  /**
+   * 判断消息是否为有效的对话消息
+   * @param {Object} message - 消息对象
+   * @param {string} nodeId - 节点 ID（用于"最后一条回复"判断）
+   */
+  const isConversationMessage = (message, nodeId = null) => {
+    if (!message) return false;
+
+    const role = message.author?.role;
+    const contentType = message.content?.content_type;
+    const nodeIdShort = nodeId ? nodeId.substring(0, 8) : 'null';
+
+    debugLog(`isConversationMessage(${nodeIdShort}): role=${role}, content_type=${contentType}`);
+
+    // 1. system → 直接过滤
+    if (role === 'system') {
+      debugLog(`isConversationMessage(${nodeIdShort}): FILTERED - system role`);
+      return false;
+    }
+
+    // 2. user → 直接保留
+    if (role === NODE_ROLES.USER) {
+      debugLog(`isConversationMessage(${nodeIdShort}): KEPT - user role`);
+      return true;
+    }
+
+    // 3. assistant 消息
+    if (role === NODE_ROLES.ASSISTANT) {
+      // 3a. 不在工具类型列表 → 内容非空就保留
+      if (!contentType || !TOOL_CONTENT_TYPES.has(contentType)) {
+        const hasContent = hasValidContent(message.content);
+        debugLog(`isConversationMessage(${nodeIdShort}): assistant non-tool, hasValidContent=${hasContent}`);
+        return hasContent;
+      }
+
+      // 3b. 在工具类型列表 → 判断是否是"最后一条回复"
+      if (nodeId) {
+        const keep = shouldKeepAsLastReply(nodeId);
+        debugLog(`isConversationMessage(${nodeIdShort}): assistant tool-type, shouldKeepAsLastReply=${keep}`);
+        return keep;
+      }
+      debugLog(`isConversationMessage(${nodeIdShort}): FILTERED - assistant tool-type, no nodeId`);
+      return false;
+    }
+
+    // 其他角色 → 过滤
+    debugLog(`isConversationMessage(${nodeIdShort}): FILTERED - unknown role: ${role}`);
+    return false;
   };
 
   // 获取节点角色（如果节点存在且有消息）
@@ -93,7 +183,7 @@ export function parseMapping(mapping, conversationId) {
   // 判断 mapping 中的节点是否为有效的对话节点
   const isValidConversationNode = (nodeId) => {
     const node = mapping[nodeId];
-    return node?.message && isConversationMessage(node.message);
+    return node?.message && isConversationMessage(node.message, nodeId);
   };
 
   // 向上追溯找到最近的有效祖先（跳过 tool/system/工具调用中间节点）
@@ -135,12 +225,26 @@ export function parseMapping(mapping, conversationId) {
 
   const nodes = [];
 
+  // ========== 调试：统计 mapping 中各角色的原始数量 ==========
+  const rawRoleStats = { user: 0, assistant: 0, tool: 0, system: 0, other: 0 };
+  for (const nodeId in mapping) {
+    const role = mapping[nodeId]?.message?.author?.role;
+    if (role === 'user') rawRoleStats.user++;
+    else if (role === 'assistant') rawRoleStats.assistant++;
+    else if (role === 'tool') rawRoleStats.tool++;
+    else if (role === 'system') rawRoleStats.system++;
+    else rawRoleStats.other++;
+  }
+  debugLog('=== RAW MAPPING STATS ===');
+  debugLog('Raw role stats:', rawRoleStats);
+
   // 第一遍：创建所有有效的对话节点
   for (const nodeId in mapping) {
     const node = mapping[nodeId];
 
     // 跳过非对话消息（没有消息、system、tool、工具调用中间产物）
-    if (!node.message || !isConversationMessage(node.message)) {
+    // 传入 nodeId 用于工具类型消息的"最后一条"判断
+    if (!node.message || !isConversationMessage(node.message, nodeId)) {
       continue;
     }
 
@@ -154,7 +258,7 @@ export function parseMapping(mapping, conversationId) {
       id: nodeId,
       conversationId,
       role: role,
-      content: normalizeText(node.message.content) || '',
+      content: processContent(node.message.content) || '',
       createTime: node.message.create_time || Date.now() / 1000,
       // 使用有效的父子关系（跳过 tool/system 节点）
       parent: validParent,
@@ -201,6 +305,18 @@ export function parseMapping(mapping, conversationId) {
       });
     }
   }
+
+  // ========== 调试：统计各角色节点数量 ==========
+  const roleStats = { user: 0, assistant: 0, tool: 0, other: 0 };
+  for (const node of nodes) {
+    if (node.role === 'user') roleStats.user++;
+    else if (node.role === 'assistant') roleStats.assistant++;
+    else if (node.role === 'tool') roleStats.tool++;
+    else roleStats.other++;
+  }
+  debugLog('=== parseMapping RESULT ===');
+  debugLog('Role stats:', roleStats);
+  debugLog('Total nodes:', nodes.length, 'Total edges:', edges.length);
 
   log('info', 'Parser', `Parsed ${nodes.length} nodes, ${edges.length} edges`);
 
@@ -313,6 +429,7 @@ export function getNodeStatistics(nodes) {
     total: nodes.length,
     user: 0,
     assistant: 0,
+    tool: 0,
     maxDepth: 0,
     branchPoints: 0
   };
@@ -322,6 +439,8 @@ export function getNodeStatistics(nodes) {
       stats.user++;
     } else if (node.role === NODE_ROLES.ASSISTANT) {
       stats.assistant++;
+    } else if (node.role === 'tool') {
+      stats.tool++;
     }
 
     if (node.children.length > 1) {
