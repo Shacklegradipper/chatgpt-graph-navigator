@@ -13,9 +13,7 @@
 </p>
 
 <p align="center">
-  <a href="./README.md">
-    <img src="https://img.shields.io/badge/Lang-English-blue.svg?style=flat-square" alt="English" />
-  </a>
+  <a href="./README.md"><img src="https://img.shields.io/badge/Lang-English-blue.svg?style=flat-square" alt="English" /></a>
   &nbsp;
   <img src="https://img.shields.io/badge/Lang-简体中文-lightgrey.svg?style=flat-square" alt="简体中文" />
 </p>
