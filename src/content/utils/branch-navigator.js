@@ -4,58 +4,21 @@
  */
 
 import { log } from '../../shared/utils.js';
-
-/**
- * 核心辅助函数：根据 ID 查找对应的 article 元素
- * 兼容 data-message-id (优先，内部 div) 和 data-turn-id (兜底，外部 article)
- */
-function findArticleById(id) {
-  // 1. 尝试直接查找内部包含 data-message-id 的 article
-  // 这里的 :has 选择器非常关键，它能找到包含特定 message-id 子元素的父级 article
-  let article = document.querySelector(`article:has([data-message-id="${id}"])`);
-  
-  // 2. 如果没找到，尝试查找自身带有 data-message-id 的 article (兼容旧版)
-  if (!article) {
-    article = document.querySelector(`article[data-message-id="${id}"]`);
-  }
-
-  // 3. 最后尝试 data-turn-id (兜底)
-  if (!article) {
-    article = document.querySelector(`article[data-turn-id="${id}"]`);
-  }
-
-  return article;
-}
+import { resolveMessageId, findArticleByMessageId, messageIdExistsInDOM } from './message-id-helper.js';
 
 /**
  * 获取当前页面显示的路径 ID 列表
- * 修复：深入查找 article 内部的 data-message-id
  */
 export function getCurrentDisplayedPath() {
-  // 1. 获取所有 article 容器
   const articles = document.querySelectorAll('article');
 
-  const path = Array.from(articles).map((article, index) => {
-    const messageNode = article.querySelector('[data-message-id]');
-    
-    // 1. 如果内部找到了 message-id (这是最准确的 UUID)
-    if (messageNode) {
-      return messageNode.getAttribute('data-message-id');
-    }
+  const path = Array.from(articles).map((article) => {
+    // 使用统一的 resolveMessageId 函数提取 ID
+    const messageId = resolveMessageId(article);
+    if (messageId) return messageId;
 
-    // 2. 如果内部没找到，尝试读取 article 自身的 data-message-id (有些旧版本在这里)
-    const articleMessageId = article.getAttribute('data-message-id');
-    if (articleMessageId) {
-      return articleMessageId;
-    }
-
-    // 3. 实在没有，才回退到 data-turn-id (通常用于 User 节点或兜底)
-    const turnId = article.getAttribute('data-turn-id');
-    
-    // [可选] 添加调试日志，帮你确认 ID 是从哪里来的
-    // console.log(`Path Node [${index}]: Found via ${messageNode ? 'Child' : (articleMessageId ? 'Article' : 'TurnID')} -> ${messageNode ? messageNode.getAttribute('data-message-id') : (articleMessageId || turnId)}`);
-
-    return turnId;
+    // 最后的兜底：data-turn-id
+    return article.getAttribute('data-turn-id');
   });
 
   // 过滤无效值
@@ -64,17 +27,12 @@ export function getCurrentDisplayedPath() {
 
 /**
  * 获取消息在当前显示中的分支信息
- * @param {string} id - 消息 ID (messageId 或 turnId)
- * @returns {{ current: number, total: number } | null} 分支信息
- */
-/**
- * 获取消息在当前显示中的分支信息
  * 针对 HTML 结构：<div class="... tabular-nums">1/2</div>
  * @param {string} id - 消息 ID (messageId 或 turnId)
  * @returns {{ current: number, total: number } | null} 分支信息
  */
 export function getBranchInfo(id) {
-  const article = findArticleById(id);
+  const article = findArticleByMessageId(id);
   if (!article) return null;
 
   // 1. 查找包含数字的元素
@@ -109,7 +67,7 @@ export function getBranchInfo(id) {
  * @param {'prev' | 'next'} direction - 导航方向
  */
 export function clickBranchButton(id, direction) {
-  const article = findArticleById(id);
+  const article = findArticleByMessageId(id);
   if (!article) {
     log('warn', 'BranchNav', `Article not found for ID: ${id}`);
     return false;
@@ -189,10 +147,8 @@ export function waitForBranchChange(oldId, timeout = 2000) {
     // 为了简单判断，我们直接看能不能在 DOM 里再 select 到这个 ID
     
     const checkChange = () => {
-      // 尝试在文档中再次查找旧 ID
-      // 这里的逻辑是：如果切换成功，旧的 message-id 应该会从 DOM 中移除，被新的 message-id 替代
-      const stillExists = !!document.querySelector(`[data-message-id="${oldId}"]`) || 
-                          !!document.querySelector(`[data-turn-id="${oldId}"]`);
+      // 使用统一的函数检查旧 ID 是否还存在于 DOM 中
+      const stillExists = messageIdExistsInDOM(oldId);
 
       // 如果旧 ID 不存在了，说明 DOM 已经刷新
       if (!stillExists) {

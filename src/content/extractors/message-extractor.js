@@ -4,7 +4,7 @@
  */
 
 import { log } from '../../shared/utils.js';
-import { resolveMessageId } from '../utils/message-id-helper.js';
+import { resolveMessageId, findArticleByMessageId } from '../utils/message-id-helper.js';
 
 /**
  * 从 DOM article 元素提取消息信息
@@ -140,28 +140,13 @@ export function getLastMessageFromDOM() {
 
 /**
  * 根据 ID 查找消息
- * [修正] 支持查找 UUID (优先) 和 TurnID
  * @param {string} messageId - 消息 ID (UUID 或 TurnID)
  * @returns {Object|null}
  */
 export function getMessageByIdFromDOM(messageId) {
-  if (!messageId) return null;
-
-  // 1. 尝试查找内部包含 data-message-id 的 article (最常见)
-  let article = document.querySelector(`article:has([data-message-id="${messageId}"])`);
+  const article = findArticleByMessageId(messageId);
   
-  // 2. 尝试查找 article 自身
   if (!article) {
-    article = document.querySelector(`article[data-message-id="${messageId}"]`);
-  }
-
-  // 3. 尝试查找 turn-id (兼容旧版 ID 或 User 节点)
-  if (!article) {
-    article = document.querySelector(`article[data-turn-id="${messageId}"]`);
-  }
-
-  if (!article) {
-    // log('warn', 'MessageExtractor', `Message not found in DOM: ${messageId}`);
     return null;
   }
 
