@@ -154,14 +154,14 @@ async function scrollToMessage(messageId) {
   let targetElement = findMessageElement(messageId);
 
   if (targetElement) {
-    // 消息在当前分支上，直接滚动
-    highlightElement(targetElement);
-    targetElement.scrollIntoView({
-      behavior: 'smooth',
-      block: 'center'
-    });
-    log('info', 'Content', '✓ Scrolled to message');
-    return true;
+    // 消息在当前 DOM 中，执行持续滚动
+    const success = await scrollUntilVisible(targetElement);
+    if (success) {
+      log('info', 'Content', '✓ Scrolled to message');
+    } else {
+      log('warn', 'Content', 'Scroll may not have reached exact position');
+    }
+    return success;
   }
 
   // 消息不在当前分支上，尝试分支导航
@@ -190,13 +190,11 @@ async function scrollToMessage(messageId) {
       targetElement = findMessageElement(messageId);
 
       if (targetElement) {
-        highlightElement(targetElement);
-        targetElement.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center'
-        });
-        log('info', 'Content', '✓ Scrolled to message after branch navigation');
-        return true;
+        const success = await scrollUntilVisible(targetElement);
+        log('info', 'Content', success
+          ? '✓ Scrolled to message after branch navigation'
+          : 'Scroll may not have reached exact position after branch navigation');
+        return success;
       } else {
         log('warn', 'Content', 'Message element still not found after navigation');
         return false;
@@ -209,6 +207,194 @@ async function scrollToMessage(messageId) {
     log('error', 'Content', 'Branch navigation error:', error);
     return false;
   }
+}
+
+// ==================== 滚动辅助函数 ====================
+
+/**
+ * 查找元素的可滚动祖先容器
+ * 从目标元素向上查找，找到第一个可滚动的祖先
+ * @param {HTMLElement} element - 目标元素
+ * @returns {HTMLElement}
+ */
+function findScrollContainer(element) {
+  let el = element.parentElement;
+  while (el) {
+    const style = window.getComputedStyle(el);
+    const overflowY = style.overflowY;
+    const isScrollable = (overflowY === 'auto' || overflowY === 'scroll')
+                         && el.scrollHeight > el.clientHeight;
+    if (isScrollable) {
+      return el;
+    }
+    el = el.parentElement;
+  }
+  return document.documentElement;
+}
+
+/**
+ * 检查元素是否接近视口中心
+ * @param {HTMLElement} element - 目标元素
+ * @returns {boolean}
+ */
+function isElementNearViewportCenter(element) {
+  const rect = element.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+
+  // 元素中心点
+  const elementCenter = rect.top + rect.height / 2;
+
+  // 视口中心区域（上下各 1/4 视口高度）
+  const centerZoneTop = viewportHeight * 0.25;
+  const centerZoneBottom = viewportHeight * 0.75;
+
+  return elementCenter >= centerZoneTop && elementCenter <= centerZoneBottom;
+}
+
+/**
+ * 等待滚动停止
+ * 通过轮询检测 scrollTop 是否稳定来判断滚动动画是否结束
+ * @param {HTMLElement} container - 滚动容器
+ * @param {number} timeout - 超时时间 (ms)
+ * @returns {Promise<void>}
+ */
+function waitForScrollToStop(container, timeout = 1500) {
+  return new Promise((resolve) => {
+    let lastScrollTop = container.scrollTop;
+    let stableCount = 0;
+    const STABLE_THRESHOLD = 3;  // 连续 3 次位置相同视为停止
+    const startTime = Date.now();
+
+    const check = () => {
+      const currentScrollTop = container.scrollTop;
+
+      if (Math.abs(currentScrollTop - lastScrollTop) < 1) {
+        stableCount++;
+        if (stableCount >= STABLE_THRESHOLD) {
+          resolve();
+          return;
+        }
+      } else {
+        stableCount = 0;
+        lastScrollTop = currentScrollTop;
+      }
+
+      if (Date.now() - startTime > timeout) {
+        resolve();
+        return;
+      }
+
+      requestAnimationFrame(check);
+    };
+
+    requestAnimationFrame(check);
+  });
+}
+
+/**
+ * 等待 DOM 变化或超时
+ * 使用 MutationObserver 监听，比死等更高效
+ * @param {HTMLElement} container - 监听的容器
+ * @param {number} maxWait - 最大等待时间 (ms)
+ * @returns {Promise<void>}
+ */
+function waitForDOMChangeOrTimeout(container, maxWait) {
+  return new Promise((resolve) => {
+    let resolved = false;
+
+    const cleanup = () => {
+      if (!resolved) {
+        resolved = true;
+        observer.disconnect();
+        resolve();
+      }
+    };
+
+    const observer = new MutationObserver(cleanup);
+
+    observer.observe(container, {
+      childList: true,
+      subtree: true,
+      attributes: false
+    });
+
+    setTimeout(cleanup, maxWait);
+  });
+}
+
+/**
+ * 持续滚动直到目标元素进入视口中心区域
+ * 处理 ChatGPT 长对话的懒加载：每次滚动后等待动画结束和 DOM 更新，
+ * 如果目标仍未到位则重试，检测停滞时逐步增加等待时间。
+ * @param {HTMLElement} element - 目标元素
+ * @returns {Promise<boolean>} 是否成功滚动到位
+ */
+async function scrollUntilVisible(element) {
+  const MAX_ATTEMPTS = 10;
+  const DOM_WAIT_INITIAL = 100;     // DOM 变化初始等待 (ms)
+  const DOM_WAIT_MAX = 1500;        // DOM 变化最大等待 (ms)
+  const STUCK_THRESHOLD = 3;        // 连续停滞阈值
+  const SCROLL_TOLERANCE = 5;       // 滚动变化容差 (px)
+
+  const scrollContainer = findScrollContainer(element);
+  log('debug', 'Content', `[Scroll] Container: ${scrollContainer.tagName}.${scrollContainer.className.split(' ')[0]}, scrollHeight=${scrollContainer.scrollHeight}, clientHeight=${scrollContainer.clientHeight}`);
+
+  let lastScrollTop = scrollContainer.scrollTop;
+  let domWaitTime = DOM_WAIT_INITIAL;
+  let stuckCount = 0;
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const rect = element.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const elementCenter = rect.top + rect.height / 2;
+
+    log('debug', 'Content', `[Scroll] Attempt ${attempt + 1}: elementCenter=${Math.round(elementCenter)}, viewport=${viewportHeight}, scrollTop=${Math.round(scrollContainer.scrollTop)}`);
+
+    // 1. 检查目标是否已在视口中心区域
+    if (isElementNearViewportCenter(element)) {
+      log('debug', 'Content', `[Scroll] Element in center zone, done!`);
+      highlightElement(element);
+      return true;
+    }
+
+    // 2. 执行滚动
+    log('debug', 'Content', `[Scroll] Calling scrollIntoView...`);
+    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // 3. 等待滚动动画停止
+    await waitForScrollToStop(scrollContainer);
+    log('debug', 'Content', `[Scroll] Scroll stopped at ${Math.round(scrollContainer.scrollTop)}`);
+
+    // 4. 等待可能的 DOM 变化（懒加载触发）
+    await waitForDOMChangeOrTimeout(scrollContainer, domWaitTime);
+
+    // 5. 检测滚动是否停滞
+    const currentScrollTop = scrollContainer.scrollTop;
+    const scrollDelta = Math.abs(currentScrollTop - lastScrollTop);
+
+    log('debug', 'Content', `[Scroll] Delta: ${Math.round(scrollDelta)}px (last=${Math.round(lastScrollTop)}, current=${Math.round(currentScrollTop)})`);
+
+    if (scrollDelta < SCROLL_TOLERANCE) {
+      stuckCount++;
+      domWaitTime = Math.min(Math.round(domWaitTime * 1.5), DOM_WAIT_MAX);
+
+      log('debug', 'Content', `[Scroll] Stuck (${stuckCount}/${STUCK_THRESHOLD}), next wait: ${domWaitTime}ms`);
+
+      if (stuckCount >= STUCK_THRESHOLD) {
+        log('warn', 'Content', '[Scroll] Stuck limit reached');
+        highlightElement(element);
+        return false;
+      }
+    } else {
+      stuckCount = 0;
+      domWaitTime = DOM_WAIT_INITIAL;
+    }
+
+    lastScrollTop = currentScrollTop;
+  }
+
+  log('warn', 'Content', '[Scroll] Max attempts reached');
+  return false;
 }
 
 /**

@@ -3,6 +3,11 @@
  * 将结构化内容（图片、音频等）转换为可读文本
  * 可扩展设计：添加新类型只需在 CONTENT_PROCESSORS 中注册
  */
+const DEBUG = true;
+const debugLog = (...args) => {
+  if (DEBUG) console.log('[MappingParser]', ...args);
+};
+
 
 /**
  * 内容处理器注册表
