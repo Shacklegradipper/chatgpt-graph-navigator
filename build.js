@@ -6,15 +6,27 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const isWatch = process.argv.includes('--watch');
+const isRelease = process.argv.includes('--release');
+const isDev = isWatch && !isRelease;
+
+// Release 模式下移除调试日志，只保留 error 和 warn
+const releaseDefines = isRelease ? {
+  'console.log': '(()=>{})',
+  'console.debug': '(()=>{})',
+  'console.info': '(()=>{})',
+  'debugLog': '(()=>{})',
+} : {};
 
 const commonOptions = {
   bundle: true,
   format: 'iife',
   platform: 'browser',
   target: ['chrome115'],
-  sourcemap: isWatch ? 'inline' : false,
+  sourcemap: isDev ? 'inline' : false,
+  minify: isRelease,
   define: {
-    'process.env.NODE_ENV': isWatch ? '"development"' : '"production"'
+    'process.env.NODE_ENV': isDev ? '"development"' : '"production"',
+    ...releaseDefines
   },
   logLevel: 'info'
 };
@@ -66,7 +78,11 @@ async function build() {
       await Promise.all(contexts.map(ctx => ctx.watch()));
     } else {
       await Promise.all(builds.map(options => esbuild.build(options)));
-      console.log('√ Build completed!');
+      if (isRelease) {
+        console.log('√ Release build completed! (debug logs removed, minified)');
+      } else {
+        console.log('√ Build completed!');
+      }
     }
   } catch (error) {
     console.error('× Build failed:', error);

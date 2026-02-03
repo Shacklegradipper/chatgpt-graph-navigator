@@ -6,6 +6,7 @@
   "scripts": {
     "build": "node build.js",
     "build:watch": "node build.js --watch",
+    "build:release": "node build.js --release",
     "dev": "npm run build:watch",
     "lint": "eslint src/",
     "format": "prettier --write \"src/**/*.{js,jsx,json,css,html}\""

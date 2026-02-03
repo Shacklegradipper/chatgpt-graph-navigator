@@ -3,10 +3,7 @@
  * 将结构化内容（图片、音频等）转换为可读文本
  * 可扩展设计：添加新类型只需在 CONTENT_PROCESSORS 中注册
  */
-const DEBUG = true;
-const debugLog = (...args) => {
-  if (DEBUG) console.log('[MappingParser]', ...args);
-};
+import { log } from '../../shared/utils.js';
 
 
 /**
@@ -44,7 +41,7 @@ const CONTENT_PROCESSORS = {
     const sizeInfo = (width && height) ? ` (${width}x${height})` : '';
 
     const result = `[图片: ${title}${sizeInfo}](${pointer})`;
-    debugLog('Processed image_asset_pointer:', { title, pointer, result });
+    log('debug', 'ContentProcessor', 'Processed image_asset_pointer:', { title, pointer, result });
     return result;
   },
 
@@ -79,19 +76,19 @@ const CONTENT_PROCESSORS = {
  */
 function processPart(part) {
   if (!part) {
-    debugLog('processPart: empty part');
+    log('debug', 'ContentProcessor', 'processPart: empty part');
     return '';
   }
 
   // 字符串直接返回
   if (typeof part === 'string') {
-    debugLog('processPart: string, length=', part.length);
+    log('debug', 'ContentProcessor', 'processPart: string, length=', part.length);
     return part;
   }
 
   // 数组递归处理
   if (Array.isArray(part)) {
-    debugLog('processPart: array, length=', part.length);
+    log('debug', 'ContentProcessor', 'processPart: array, length=', part.length);
     return part
       .map(processPart)
       .filter(s => s.length > 0)
@@ -101,15 +98,15 @@ function processPart(part) {
   // 结构化对象
   if (typeof part === 'object') {
     const contentType = part.content_type;
-    debugLog('processPart: object, content_type=', contentType, 'keys=', Object.keys(part));
+    log('debug', 'ContentProcessor', 'processPart: object, content_type=', contentType, 'keys=', Object.keys(part));
 
     // 查找对应的处理器
     const processor = CONTENT_PROCESSORS[contentType];
     if (processor) {
-      debugLog('processPart: found processor for', contentType);
+      log('debug', 'ContentProcessor', 'processPart: found processor for', contentType);
       try {
         const result = processor(part);
-        debugLog('processPart: processor result=', result);
+        log('debug', 'ContentProcessor', 'processPart: processor result=', result);
         return result;
       } catch (e) {
         console.warn('[ContentProcessor] Processor error:', contentType, e);
@@ -119,20 +116,20 @@ function processPart(part) {
 
     // 没有处理器，尝试提取 text 字段
     if (typeof part.text === 'string') {
-      debugLog('processPart: using text field, length=', part.text.length);
+      log('debug', 'ContentProcessor', 'processPart: using text field, length=', part.text.length);
       return part.text;
     }
 
     // 有嵌套的 parts
     if (Array.isArray(part.parts)) {
-      debugLog('processPart: has nested parts, length=', part.parts.length);
+      log('debug', 'ContentProcessor', 'processPart: has nested parts, length=', part.parts.length);
       return part.parts
         .map(processPart)
         .filter(s => s.length > 0)
         .join('');
     }
 
-    debugLog('processPart: no processor, no text, no parts - returning empty');
+    log('debug', 'ContentProcessor', 'processPart: no processor, no text, no parts - returning empty');
   }
 
   return '';
@@ -144,22 +141,22 @@ function processPart(part) {
  * @returns {string} 处理后的文本
  */
 export function processContent(content) {
-  debugLog('processContent called with:', typeof content, content ? Object.keys(content) : 'null');
+  log('debug', 'ContentProcessor', 'processContent called with:', typeof content, content ? Object.keys(content) : 'null');
 
   if (!content) {
-    debugLog('processContent: empty content');
+    log('debug', 'ContentProcessor', 'processContent: empty content');
     return '';
   }
 
   // 简单字符串
   if (typeof content === 'string') {
-    debugLog('processContent: string, length=', content.length);
+    log('debug', 'ContentProcessor', 'processContent: string, length=', content.length);
     return content;
   }
 
   // 数组
   if (Array.isArray(content)) {
-    debugLog('processContent: array, length=', content.length);
+    log('debug', 'ContentProcessor', 'processContent: array, length=', content.length);
     return content
       .map(processPart)
       .filter(s => s.length > 0)
@@ -168,16 +165,16 @@ export function processContent(content) {
 
   // 对象
   if (typeof content === 'object') {
-    debugLog('processContent: object, content_type=', content.content_type, 'has parts=', Array.isArray(content.parts));
+    log('debug', 'ContentProcessor', 'processContent: object, content_type=', content.content_type, 'has parts=', Array.isArray(content.parts));
 
     // 有 parts 数组 (multimodal_text, text 等)
     if (Array.isArray(content.parts)) {
-      debugLog('processContent: processing parts array, length=', content.parts.length);
+      log('debug', 'ContentProcessor', 'processContent: processing parts array, length=', content.parts.length);
       const result = content.parts
         .map(processPart)
         .filter(s => s.length > 0)
         .join('\n');
-      debugLog('processContent: parts result length=', result.length);
+      log('debug', 'ContentProcessor', 'processContent: parts result length=', result.length);
       return result;
     }
 

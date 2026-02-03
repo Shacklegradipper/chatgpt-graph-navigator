@@ -6,12 +6,6 @@ import { NODE_ROLES } from '../../shared/constants.js';
 import { log } from '../../shared/utils.js';
 import { processContent, hasValidContent } from './content-processor.js';
 
-// 调试开关
-const DEBUG = true;
-const debugLog = (...args) => {
-  if (DEBUG) console.log('[MappingParser]', ...args);
-};
-
 /**
  * 解析 mapping 为节点数组和边数组
  * @param {Object} mapping - 原始 mapping 对象
@@ -20,8 +14,8 @@ const debugLog = (...args) => {
  */
 export function parseMapping(mapping, conversationId) {
   log('info', 'Parser', 'Parsing mapping...');
-  debugLog('=== parseMapping START ===');
-  debugLog('Total mapping entries:', Object.keys(mapping).length);
+  log('debug', 'MappingParser', '=== parseMapping START ===');
+  log('debug', 'MappingParser', 'Total mapping entries:', Object.keys(mapping).length);
 
   // 需要特殊判断的 content_type：这些是工具调用的中间产物
   // 但如果是"最后一条回复"（后代中没有其他回复类消息），则保留
@@ -107,18 +101,18 @@ export function parseMapping(mapping, conversationId) {
   const shouldKeepAsLastReply = (nodeId) => {
     const node = mapping[nodeId];
     if (!node?.message) {
-      debugLog(`shouldKeepAsLastReply(${nodeId.substring(0,8)}): no message`);
+      log('debug', 'MappingParser', `shouldKeepAsLastReply(${nodeId.substring(0,8)}): no message`);
       return false;
     }
 
     // 内容不能为空
     const hasContent = hasValidContent(node.message.content);
-    debugLog(`shouldKeepAsLastReply(${nodeId.substring(0,8)}): hasValidContent=${hasContent}`);
+    log('debug', 'MappingParser', `shouldKeepAsLastReply(${nodeId.substring(0,8)}): hasValidContent=${hasContent}`);
     if (!hasContent) return false;
 
     // 如果后代中有任何其他回复类消息，则不保留
     const hasBetterCandidate = hasAnyReplyDescendant(nodeId);
-    debugLog(`shouldKeepAsLastReply(${nodeId.substring(0,8)}): hasAnyReplyDescendant=${hasBetterCandidate}`);
+    log('debug', 'MappingParser', `shouldKeepAsLastReply(${nodeId.substring(0,8)}): hasAnyReplyDescendant=${hasBetterCandidate}`);
     return !hasBetterCandidate;
   };
 
@@ -136,17 +130,17 @@ export function parseMapping(mapping, conversationId) {
     const contentType = message.content?.content_type;
     const nodeIdShort = nodeId ? nodeId.substring(0, 8) : 'null';
 
-    debugLog(`isConversationMessage(${nodeIdShort}): role=${role}, content_type=${contentType}`);
+    log('debug', 'MappingParser', `isConversationMessage(${nodeIdShort}): role=${role}, content_type=${contentType}`);
 
     // 1. system → 直接过滤
     if (role === 'system') {
-      debugLog(`isConversationMessage(${nodeIdShort}): FILTERED - system role`);
+      log('debug', 'MappingParser', `isConversationMessage(${nodeIdShort}): FILTERED - system role`);
       return false;
     }
 
     // 2. user → 直接保留
     if (role === NODE_ROLES.USER) {
-      debugLog(`isConversationMessage(${nodeIdShort}): KEPT - user role`);
+      log('debug', 'MappingParser', `isConversationMessage(${nodeIdShort}): KEPT - user role`);
       return true;
     }
 
@@ -155,22 +149,22 @@ export function parseMapping(mapping, conversationId) {
       // 3a. 不在工具类型列表 → 内容非空就保留
       if (!contentType || !TOOL_CONTENT_TYPES.has(contentType)) {
         const hasContent = hasValidContent(message.content);
-        debugLog(`isConversationMessage(${nodeIdShort}): assistant non-tool, hasValidContent=${hasContent}`);
+        log('debug', 'MappingParser', `isConversationMessage(${nodeIdShort}): assistant non-tool, hasValidContent=${hasContent}`);
         return hasContent;
       }
 
       // 3b. 在工具类型列表 → 判断是否是"最后一条回复"
       if (nodeId) {
         const keep = shouldKeepAsLastReply(nodeId);
-        debugLog(`isConversationMessage(${nodeIdShort}): assistant tool-type, shouldKeepAsLastReply=${keep}`);
+        log('debug', 'MappingParser', `isConversationMessage(${nodeIdShort}): assistant tool-type, shouldKeepAsLastReply=${keep}`);
         return keep;
       }
-      debugLog(`isConversationMessage(${nodeIdShort}): FILTERED - assistant tool-type, no nodeId`);
+      log('debug', 'MappingParser', `isConversationMessage(${nodeIdShort}): FILTERED - assistant tool-type, no nodeId`);
       return false;
     }
 
     // 其他角色 → 过滤
-    debugLog(`isConversationMessage(${nodeIdShort}): FILTERED - unknown role: ${role}`);
+    log('debug', 'MappingParser', `isConversationMessage(${nodeIdShort}): FILTERED - unknown role: ${role}`);
     return false;
   };
 
@@ -235,8 +229,8 @@ export function parseMapping(mapping, conversationId) {
     else if (role === 'system') rawRoleStats.system++;
     else rawRoleStats.other++;
   }
-  debugLog('=== RAW MAPPING STATS ===');
-  debugLog('Raw role stats:', rawRoleStats);
+  log('debug', 'MappingParser', '=== RAW MAPPING STATS ===');
+  log('debug', 'MappingParser', 'Raw role stats:', rawRoleStats);
 
   // 第一遍：创建所有有效的对话节点
   for (const nodeId in mapping) {
@@ -314,9 +308,9 @@ export function parseMapping(mapping, conversationId) {
     else if (node.role === 'tool') roleStats.tool++;
     else roleStats.other++;
   }
-  debugLog('=== parseMapping RESULT ===');
-  debugLog('Role stats:', roleStats);
-  debugLog('Total nodes:', nodes.length, 'Total edges:', edges.length);
+  log('debug', 'MappingParser', '=== parseMapping RESULT ===');
+  log('debug', 'MappingParser', 'Role stats:', roleStats);
+  log('debug', 'MappingParser', 'Total nodes:', nodes.length, 'Total edges:', edges.length);
 
   log('info', 'Parser', `Parsed ${nodes.length} nodes, ${edges.length} edges`);
 
