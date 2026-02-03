@@ -256,6 +256,9 @@ We have exciting plans to turn this tool into a comprehensive Knowledge Manageme
 - [ ] **Global Search:** Search keywords across all nodes and branches.
 - [ ] **Formula Support:** One-click copy for LaTeX formulas.
 
+**0. Bug FIX**
+- [ ] Unable to jump to certain special nodes (e.g., some special image nodes).
+
 <h2 id="contributing">🤝 Contributing</h2>
 
 We welcome all contributions!
