@@ -238,21 +238,36 @@ function findMessageElement(messageId) {
     }
   }
 
-  // 4. 尝试模糊匹配（消息 ID 的前缀匹配）
+  // 4. 尝试模糊匹配
   const MIN_SAFE_LENGTH = 5;
-  if (!targetElement) {
-    const allArticles = document.querySelectorAll('article[data-turn-id]');
-    for (const article of allArticles) {
-      const turnId = article.getAttribute('data-turn-id');
-      if (turnId && messageId && 
-        turnId.length >= MIN_SAFE_LENGTH && 
-        messageId.length >= MIN_SAFE_LENGTH
-      ) {
-          if (turnId.startsWith(messageId) || messageId.startsWith(turnId)) {
-            targetElement = article;
-            break;
-          }
-      }
+  
+  // 只有当 ID 长度足够时才进行模糊搜索，避免匹配到 "1", "user" 等短字符
+  if (messageId.length < MIN_SAFE_LENGTH) return null;
+
+  // 扩大搜索范围：获取所有包含任意一种 ID 属性的 article
+  const candidates = document.querySelectorAll('article[data-message-id], article[data-turn-id]');
+
+  for (const article of candidates) {
+    // 获取两个属性值
+    const domMessageId = article.getAttribute('data-message-id');
+    const domTurnId = article.getAttribute('data-turn-id');
+
+    // 定义匹配帮助函数：检查 DOM 属性是否“包含”目标 ID，或者目标 ID 是否“包含”DOM 属性
+    const isMatch = (domAttr) => {
+      if (!domAttr || domAttr.length < MIN_SAFE_LENGTH) return false;
+      return domAttr.includes(messageId) || messageId.includes(domAttr);
+    };
+
+    // 优先检查 data-message-id
+    if (isMatch(domMessageId)) {
+      targetElement = article;
+      break;
+    }
+
+    // 其次检查 data-turn-id
+    if (isMatch(domTurnId)) {
+      targetElement = article;
+      break;
     }
   }
 
@@ -657,6 +672,7 @@ function logDebugInfo(conversationData) {
     'Total Edges': conversationData.edges.length,
     'User Messages': conversationData.nodes.filter(n => n.role === 'user').length,
     'Assistant Replies': conversationData.nodes.filter(n => n.role === 'assistant').length,
+    'Tool Replies': conversationData.nodes.filter(n => n.role === 'tool').length,
     'Rounds': conversationData.rounds.length,
     'Branches': conversationData.branches.length,
     'Branch Points': conversationData.analysis.branchPointsCount
