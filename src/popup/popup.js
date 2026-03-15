@@ -25,6 +25,10 @@ let debugLogLevels = {
   error: true
 };
 
+// Backup state
+let backupCount = 0;
+let restoreModeEnabled = false;
+
 /**
  * 加载折叠设置
  */
@@ -396,6 +400,144 @@ function bindCollapseSettingsEvents() {
   }
 }
 
+/**
+ * Load backup state
+ */
+async function loadBackupState() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.GET_ALL_BACKUPS });
+    const metas = response?.data || response?.payload || [];
+    backupCount = metas.length;
+  } catch (e) {
+    console.warn('Failed to load backup state:', e);
+    backupCount = 0;
+  }
+
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.RESTORE_MODE_ENABLED);
+    restoreModeEnabled = result[STORAGE_KEYS.RESTORE_MODE_ENABLED] === true;
+  } catch (e) {
+    restoreModeEnabled = false;
+  }
+}
+
+/**
+ * Create backup management HTML
+ */
+function createBackupSettingsHTML() {
+  return `
+    <div class="backup-section">
+      <h3>Backup & Restore</h3>
+      <div class="backup-body">
+        <div class="backup-stats" id="backup-stats">
+          Backed up conversations: <strong>${backupCount}</strong>
+        </div>
+
+        <div class="backup-progress" id="backup-progress">
+          <div class="backup-progress-bar">
+            <div class="backup-progress-fill" id="backup-progress-fill"></div>
+          </div>
+          <div class="backup-progress-text" id="backup-progress-text">Preparing...</div>
+        </div>
+
+        <div class="backup-actions">
+          <button class="secondary" id="backup-start-btn" style="flex: 1;">
+            Batch Backup
+          </button>
+        </div>
+
+        <div class="toggle-switch">
+          <label for="restore-mode-toggle">Restore Mode</label>
+          <label class="switch">
+            <input type="checkbox" id="restore-mode-toggle" ${restoreModeEnabled ? 'checked' : ''}>
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Bind backup settings events
+ */
+function bindBackupSettingsEvents() {
+  const startBtn = document.getElementById('backup-start-btn');
+  const restoreToggle = document.getElementById('restore-mode-toggle');
+
+  if (startBtn) {
+    startBtn.addEventListener('click', async () => {
+      startBtn.disabled = true;
+      startBtn.textContent = 'Backing up...';
+
+      const progressEl = document.getElementById('backup-progress');
+      const fillEl = document.getElementById('backup-progress-fill');
+      const textEl = document.getElementById('backup-progress-text');
+      if (progressEl) progressEl.classList.add('active');
+
+      // Listen for progress messages from content script
+      const progressListener = (message) => {
+        if (message.type === 'BACKUP_PROGRESS') {
+          const { current, total, title } = message.payload || {};
+          if (fillEl && total > 0) {
+            fillEl.style.width = `${Math.round((current / total) * 100)}%`;
+          }
+          if (textEl) {
+            textEl.textContent = `${current}/${total}: ${title || ''}`;
+          }
+        }
+      };
+      chrome.runtime.onMessage.addListener(progressListener);
+
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (!tab?.id) throw new Error('No active ChatGPT tab');
+
+        const response = await chrome.tabs.sendMessage(tab.id, { type: MESSAGE_TYPES.BACKUP_START });
+
+        chrome.runtime.onMessage.removeListener(progressListener);
+
+        if (response?.success) {
+          const { success: s, skipped, failed } = response;
+          if (textEl) textEl.textContent = `Done! ${s} saved, ${skipped} skipped, ${failed} failed`;
+          if (fillEl) fillEl.style.width = '100%';
+          // Refresh count
+          await loadBackupState();
+          const statsEl = document.getElementById('backup-stats');
+          if (statsEl) statsEl.innerHTML = `Backed up conversations: <strong>${backupCount}</strong>`;
+        } else {
+          if (textEl) textEl.textContent = `Error: ${response?.error || 'Unknown'}`;
+        }
+      } catch (err) {
+        chrome.runtime.onMessage.removeListener(progressListener);
+        if (textEl) textEl.textContent = `Error: ${err.message}`;
+      }
+
+      startBtn.disabled = false;
+      startBtn.textContent = 'Batch Backup';
+    });
+  }
+
+  if (restoreToggle) {
+    restoreToggle.addEventListener('change', async () => {
+      restoreModeEnabled = restoreToggle.checked;
+      await chrome.storage.local.set({ [STORAGE_KEYS.RESTORE_MODE_ENABLED]: restoreModeEnabled });
+
+      // Notify content script to enable/disable restore
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab?.id) {
+          await chrome.tabs.sendMessage(tab.id, {
+            type: restoreModeEnabled ? 'RESTORE_ENABLE' : 'RESTORE_DISABLE'
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to notify content script:', e);
+      }
+    });
+  }
+}
+
 // 创建语言切换器
 function createLanguageSwitcher() {
   const container = document.getElementById('language-switcher-container');
@@ -456,6 +598,9 @@ async function loadStatus() {
   // Load debug log setting
   await loadDebugLogSetting();
 
+  // Load backup state
+  await loadBackupState();
+
   // 创建语言切换器（只创建一次）
   createLanguageSwitcher();
 
@@ -512,6 +657,8 @@ async function loadStatusContent() {
       statusHtml += createSidepanelZoomSettingsHTML();
       // Debug log toggle (always available)
       statusHtml += createDebugLogSettingsHTML();
+      // Backup management (always available)
+      statusHtml += createBackupSettingsHTML();
 
       container.innerHTML = statusHtml;
 
@@ -527,6 +674,9 @@ async function loadStatusContent() {
 
       // 绑定调试日志事件
       bindDebugLogSettingsEvents();
+
+      // 绑定备份事件
+      bindBackupSettingsEvents();
 
       return;
     }
@@ -620,6 +770,8 @@ async function loadStatusContent() {
     statusHtml += createSidepanelZoomSettingsHTML();
     // Debug log toggle
     statusHtml += createDebugLogSettingsHTML();
+    // Backup management
+    statusHtml += createBackupSettingsHTML();
 
     container.innerHTML = statusHtml;
 
@@ -631,6 +783,9 @@ async function loadStatusContent() {
 
     // 绑定调试日志事件
     bindDebugLogSettingsEvents();
+
+    // 绑定备份事件
+    bindBackupSettingsEvents();
 
     // 绑定事件
     const openSidePanelBtn = document.getElementById('open-sidepanel-btn');

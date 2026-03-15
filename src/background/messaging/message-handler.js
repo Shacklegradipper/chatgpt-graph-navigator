@@ -63,6 +63,21 @@ async function handleMessage(message, sender) {
     case MESSAGE_TYPES.CLEAR_TOKEN:
       return await handleClearToken();
 
+    case MESSAGE_TYPES.BACKUP_SINGLE:
+      return await handleBackupSingle(payload);
+
+    case MESSAGE_TYPES.GET_ALL_BACKUPS:
+      return await handleGetAllBackups();
+
+    case MESSAGE_TYPES.DELETE_BACKUP:
+      return await handleDeleteBackup(payload);
+
+    case MESSAGE_TYPES.RESTORE_GET:
+      return await handleRestoreGet(payload);
+
+    case MESSAGE_TYPES.RESTORE_GET_IDS:
+      return await handleRestoreGetIds();
+
     default:
       throw new Error(`Unknown message type: ${type}`);
   }
@@ -341,4 +356,37 @@ async function notifySidePanel(type, payload) {
     // Side Panel 可能未打开，忽略错误
     console.warn('[Background] Failed to notify side panel:', error.message);
   }
+}
+
+// ==================== Backup & Restore Handlers ====================
+
+async function handleBackupSingle(payload) {
+  console.log('[Background] Saving backup:', payload.conversation_id);
+  await db.saveBackup(payload);
+  return { conversation_id: payload.conversation_id };
+}
+
+async function handleGetAllBackups() {
+  console.log('[Background] Getting all backups meta');
+  return await db.getAllBackupsMeta();
+}
+
+async function handleDeleteBackup(payload) {
+  const { conversationId } = payload;
+  console.log('[Background] Deleting backup:', conversationId);
+  await db.deleteBackup(conversationId);
+  return { deleted: conversationId };
+}
+
+async function handleRestoreGet(payload) {
+  const { conversationId } = payload;
+  console.log('[Background] Getting backup for restore:', conversationId);
+  const backup = await db.getBackup(conversationId);
+  return backup ? backup.raw : null;
+}
+
+async function handleRestoreGetIds() {
+  console.log('[Background] Getting all backup IDs');
+  const ids = await db.getAllBackupIds();
+  return [...ids]; // Set → Array for serialization
 }

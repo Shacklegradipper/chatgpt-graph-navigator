@@ -418,6 +418,109 @@ export class Database {
     console.log(`[DB] Conversation deleted: ${conversationId}`);
   }
 
+  // ==================== Backup CRUD ====================
+
+  /**
+   * 保存对话备份（原始 API JSON）
+   * @param {Object} rawData - API 返回的完整 JSON
+   * @returns {Promise<void>}
+   */
+  async saveBackup(rawData) {
+    const db = await this.open();
+    const tx = db.transaction('conversation_backups', 'readwrite');
+    const store = tx.objectStore('conversation_backups');
+
+    const record = {
+      conversation_id: rawData.conversation_id,
+      title: rawData.title || '',
+      create_time: rawData.create_time || 0,
+      update_time: rawData.update_time || 0,
+      backup_time: Date.now(),
+      raw: rawData
+    };
+
+    return new Promise((resolve, reject) => {
+      const request = store.put(record);
+      request.onsuccess = () => {
+        console.log(`[DB] Backup saved: ${record.conversation_id}`);
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  /**
+   * 获取单个备份
+   * @param {string} conversationId
+   * @returns {Promise<Object|null>}
+   */
+  async getBackup(conversationId) {
+    const db = await this.open();
+    const tx = db.transaction('conversation_backups', 'readonly');
+    const store = tx.objectStore('conversation_backups');
+
+    return new Promise((resolve, reject) => {
+      const request = store.get(conversationId);
+      request.onsuccess = () => resolve(request.result || null);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  /**
+   * 获取所有备份的元数据（不含 raw，用于列表展示）
+   * @returns {Promise<Array>}
+   */
+  async getAllBackupsMeta() {
+    const db = await this.open();
+    const tx = db.transaction('conversation_backups', 'readonly');
+    const store = tx.objectStore('conversation_backups');
+
+    return new Promise((resolve, reject) => {
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const results = (request.result || []).map(({ raw, ...meta }) => meta);
+        resolve(results);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  /**
+   * 删除备份
+   * @param {string} conversationId
+   * @returns {Promise<void>}
+   */
+  async deleteBackup(conversationId) {
+    const db = await this.open();
+    const tx = db.transaction('conversation_backups', 'readwrite');
+    const store = tx.objectStore('conversation_backups');
+
+    return new Promise((resolve, reject) => {
+      const request = store.delete(conversationId);
+      request.onsuccess = () => {
+        console.log(`[DB] Backup deleted: ${conversationId}`);
+        resolve();
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  /**
+   * 获取所有备份 ID
+   * @returns {Promise<Set<string>>}
+   */
+  async getAllBackupIds() {
+    const db = await this.open();
+    const tx = db.transaction('conversation_backups', 'readonly');
+    const store = tx.objectStore('conversation_backups');
+
+    return new Promise((resolve, reject) => {
+      const request = store.getAllKeys();
+      request.onsuccess = () => resolve(new Set(request.result || []));
+      request.onerror = () => reject(request.error);
+    });
+  }
+
   /**
    * 关闭数据库
    */

@@ -91,6 +91,12 @@ const builds = [
     ...commonOptions,
     entryPoints: ['src/sidepanel/styles/index.css'],
     outfile: 'dist/sidepanel.css'
+  },
+  // Main World Script (fetch 拦截，运行在 MAIN world)
+  {
+    ...commonOptions,
+    entryPoints: ['src/content/main-world.js'],
+    outfile: 'dist/main-world.js'
   }
 ];
 

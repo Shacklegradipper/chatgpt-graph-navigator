@@ -24,6 +24,8 @@ import { conversationState } from './state/conversation-state.js';
 import { navigateToMessage, getCurrentDisplayedPath } from './utils/branch-navigator.js';
 import { initCollapseManager, setupSettingsListener } from './collapse/collapse-manager.js';
 import { toggleFloatingPanel, toggleClickThrough, toggleLock } from './ui/floating-panel.js';
+import { initRestoreBridge, autoConfigRestore, enableRestore, disableRestore } from './backup/restore-bridge.js';
+import { startBatchBackup } from './backup/backup-manager.js';
 
 // 全局观察器实例
 let urlObserver = null;
@@ -103,6 +105,37 @@ function setupMessageListener() {
         toggleLock().then(() => sendResponse({ success: true })).catch(err => sendResponse({ success: false, error: err?.message || String(err) }));
         return true;
       }
+    }
+
+    // 批量备份触发
+    if (message.type === MESSAGE_TYPES.BACKUP_START) {
+      (async () => {
+        try {
+          const result = await startBatchBackup((current, total, title) => {
+            // 通过 runtime 消息回报进度给 popup（popup 可能已关闭，忽略错误）
+            try {
+              chrome.runtime.sendMessage({
+                type: 'BACKUP_PROGRESS',
+                payload: { current, total, title }
+              });
+            } catch (e) { /* popup closed */ }
+          });
+          sendResponse({ success: true, ...result });
+        } catch (err) {
+          sendResponse({ success: false, error: err.message });
+        }
+      })();
+      return true;
+    }
+
+    // Restore mode toggle from popup
+    if (message.type === 'RESTORE_ENABLE') {
+      enableRestore().then(() => sendResponse({ success: true })).catch(e => sendResponse({ success: false, error: e.message }));
+      return true;
+    }
+    if (message.type === 'RESTORE_DISABLE') {
+      disableRestore().then(() => sendResponse({ success: true })).catch(e => sendResponse({ success: false, error: e.message }));
+      return true;
     }
 
     return false;
@@ -503,6 +536,11 @@ async function main() {
 
   // 设置消息监听器（在最早期就设置，以便接收来自 sidepanel 的消息）
   setupMessageListener();
+
+  // 初始化 restore bridge（桥接 main-world.js 和 background）
+  initRestoreBridge();
+  // 根据存储状态自动启用/禁用恢复模式
+  autoConfigRestore();
 
   // Floating window hotkeys
   setupFloatingHotkeys();

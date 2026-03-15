@@ -43,7 +43,15 @@ export const MESSAGE_TYPES = {
 
   // Popup / Floating UI
   TOGGLE_FLOATING_PANEL: 'TOGGLE_FLOATING_PANEL',
-  UPDATE_FLOATING_PANEL_STATE: 'UPDATE_FLOATING_PANEL_STATE'
+  UPDATE_FLOATING_PANEL_STATE: 'UPDATE_FLOATING_PANEL_STATE',
+
+  // Backup & Restore
+  BACKUP_SINGLE: 'BACKUP_SINGLE',
+  GET_ALL_BACKUPS: 'GET_ALL_BACKUPS',
+  DELETE_BACKUP: 'DELETE_BACKUP',
+  RESTORE_GET: 'RESTORE_GET',
+  RESTORE_GET_IDS: 'RESTORE_GET_IDS',
+  BACKUP_START: 'BACKUP_START'
 };
 
 // 节点角色
@@ -64,7 +72,9 @@ export const STORAGE_KEYS = {
   // Debug log enabled (default: false)
   DEBUG_LOG_ENABLED: 'chatgpt_graph_debug_log_enabled',
   // Debug log levels (default: all enabled when debug is on)
-  DEBUG_LOG_LEVELS: 'chatgpt_graph_debug_log_levels'
+  DEBUG_LOG_LEVELS: 'chatgpt_graph_debug_log_levels',
+  // Restore mode enabled (default: false)
+  RESTORE_MODE_ENABLED: 'chatgpt_graph_restore_mode_enabled'
 };
 
 // 内容折叠默认设置
