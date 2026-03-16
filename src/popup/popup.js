@@ -444,6 +444,9 @@ function createBackupSettingsHTML() {
           <button class="secondary" id="backup-start-btn" style="flex: 1;">
             Batch Backup
           </button>
+          <button class="secondary" id="manage-backups-btn" style="flex: 1;">
+            Manage Backups
+          </button>
         </div>
 
         <div class="toggle-switch">
@@ -464,6 +467,13 @@ function createBackupSettingsHTML() {
 function bindBackupSettingsEvents() {
   const startBtn = document.getElementById('backup-start-btn');
   const restoreToggle = document.getElementById('restore-mode-toggle');
+  const manageBtn = document.getElementById('manage-backups-btn');
+
+  if (manageBtn) {
+    manageBtn.addEventListener('click', () => {
+      chrome.tabs.create({ url: chrome.runtime.getURL('src/backup-manager/index.html') });
+    });
+  }
 
   if (startBtn) {
     startBtn.addEventListener('click', async () => {
@@ -498,8 +508,8 @@ function bindBackupSettingsEvents() {
         chrome.runtime.onMessage.removeListener(progressListener);
 
         if (response?.success) {
-          const { success: s, skipped, failed } = response;
-          if (textEl) textEl.textContent = `Done! ${s} saved, ${skipped} skipped, ${failed} failed`;
+          const { saved, skipped, failed } = response;
+          if (textEl) textEl.textContent = `Done! ${saved} saved, ${skipped} skipped, ${failed} failed`;
           if (fillEl) fillEl.style.width = '100%';
           // Refresh count
           await loadBackupState();

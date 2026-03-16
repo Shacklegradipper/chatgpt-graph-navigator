@@ -78,6 +78,12 @@ async function handleMessage(message, sender) {
     case MESSAGE_TYPES.RESTORE_GET_IDS:
       return await handleRestoreGetIds();
 
+    case MESSAGE_TYPES.BATCH_DELETE_BACKUPS:
+      return await handleBatchDeleteBackups(payload);
+
+    case MESSAGE_TYPES.BATCH_GET_BACKUPS:
+      return await handleBatchGetBackups(payload);
+
     default:
       throw new Error(`Unknown message type: ${type}`);
   }
@@ -389,4 +395,17 @@ async function handleRestoreGetIds() {
   console.log('[Background] Getting all backup IDs');
   const ids = await db.getAllBackupIds();
   return [...ids]; // Set → Array for serialization
+}
+
+async function handleBatchDeleteBackups(payload) {
+  const { ids } = payload;
+  console.log('[Background] Batch deleting backups:', ids.length);
+  await db.deleteBackups(ids);
+  return { deleted: ids.length };
+}
+
+async function handleBatchGetBackups(payload) {
+  const { ids } = payload;
+  console.log('[Background] Batch getting backups:', ids.length);
+  return await db.getBackups(ids);
 }

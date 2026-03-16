@@ -430,12 +430,49 @@ export class Database {
     const tx = db.transaction('conversation_backups', 'readwrite');
     const store = tx.objectStore('conversation_backups');
 
+    // Extract metadata from raw mapping
+    let message_count = 0;
+    let content_preview = '';
+    let model_slug = '';
+    let workspace_name = 'Personal';
+    let workspace_id = rawData.workspace_id || null;
+
+    if (workspace_id) {
+      // Use resolved name from accounts API if available, otherwise fallback to 'Team'
+      workspace_name = rawData._workspace_name || 'Team';
+    }
+
+    if (rawData.mapping) {
+      const nodes = Object.values(rawData.mapping);
+      for (const node of nodes) {
+        const role = node.message?.author?.role;
+        if (role === 'user' || role === 'assistant') {
+          message_count++;
+        }
+        if (!content_preview && role === 'user') {
+          const parts = node.message?.content?.parts;
+          if (parts && parts.length > 0) {
+            const text = parts.filter(p => typeof p === 'string').join(' ');
+            content_preview = text.substring(0, 200);
+          }
+        }
+        if (!model_slug && role === 'assistant') {
+          model_slug = node.message?.metadata?.model_slug || '';
+        }
+      }
+    }
+
     const record = {
       conversation_id: rawData.conversation_id,
       title: rawData.title || '',
       create_time: rawData.create_time || 0,
       update_time: rawData.update_time || 0,
       backup_time: Date.now(),
+      message_count,
+      content_preview,
+      model_slug,
+      workspace_id,
+      workspace_name,
       raw: rawData
     };
 
@@ -519,6 +556,50 @@ export class Database {
       request.onsuccess = () => resolve(new Set(request.result || []));
       request.onerror = () => reject(request.error);
     });
+  }
+
+  /**
+   * 批量删除备份
+   * @param {string[]} ids - conversation_id 数组
+   * @returns {Promise<void>}
+   */
+  async deleteBackups(ids) {
+    const db = await this.open();
+    const tx = db.transaction('conversation_backups', 'readwrite');
+    const store = tx.objectStore('conversation_backups');
+
+    const promises = ids.map(id => {
+      return new Promise((resolve, reject) => {
+        const request = store.delete(id);
+        request.onsuccess = () => resolve();
+        request.onerror = () => reject(request.error);
+      });
+    });
+
+    await Promise.all(promises);
+    console.log(`[DB] Batch deleted ${ids.length} backups`);
+  }
+
+  /**
+   * 批量获取备份（含 raw 数据，用于导出）
+   * @param {string[]} ids - conversation_id 数组
+   * @returns {Promise<Object[]>}
+   */
+  async getBackups(ids) {
+    const db = await this.open();
+    const tx = db.transaction('conversation_backups', 'readonly');
+    const store = tx.objectStore('conversation_backups');
+
+    const promises = ids.map(id => {
+      return new Promise((resolve, reject) => {
+        const request = store.get(id);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+      });
+    });
+
+    const results = await Promise.all(promises);
+    return results.filter(r => r !== null);
   }
 
   /**

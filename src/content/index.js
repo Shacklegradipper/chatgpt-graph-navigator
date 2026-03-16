@@ -120,7 +120,7 @@ function setupMessageListener() {
               });
             } catch (e) { /* popup closed */ }
           });
-          sendResponse({ success: true, ...result });
+          sendResponse({ success: true, saved: result.success, skipped: result.skipped, failed: result.failed });
         } catch (err) {
           sendResponse({ success: false, error: err.message });
         }

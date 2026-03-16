@@ -97,6 +97,12 @@ const builds = [
     ...commonOptions,
     entryPoints: ['src/content/main-world.js'],
     outfile: 'dist/main-world.js'
+  },
+  // Backup Manager (不需要 React)
+  {
+    ...commonOptions,
+    entryPoints: ['src/backup-manager/backup-manager.js'],
+    outfile: 'dist/backup-manager.js'
   }
 ];
 

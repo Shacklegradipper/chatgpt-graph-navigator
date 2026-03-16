@@ -64,7 +64,9 @@
         "assets/*",
         "src/sidepanel/index.html",
         "dist/sidepanel.js",
-        "dist/sidepanel.css"
+        "dist/sidepanel.css",
+        "src/backup-manager/index.html",
+        "dist/backup-manager.js"
       ],
       "matches": ["https://chatgpt.com/*", "https://chat.openai.com/*"]
     }
