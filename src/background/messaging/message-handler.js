@@ -5,6 +5,7 @@
 import { MESSAGE_TYPES } from '../../shared/constants.js';
 import { db } from '../database/db.js';
 import { getTokenStatus, clearToken } from '../auth/token-capture.js';
+import { startBackup, pauseBackup, resumeBackup, stopBackup, getBackupStatus } from '../backup/backup-engine.js';
 
 /**
  * 设置消息监听器
@@ -37,6 +38,11 @@ export function setupMessageListener() {
  */
 async function handleMessage(message, sender) {
   const { type, payload } = message;
+
+  // Ignore broadcast-only messages (sent by background itself, received by popup/sidepanel)
+  if (type === 'BACKUP_PROGRESS' || type === 'TOKEN_UPDATED') {
+    return { ignored: true };
+  }
 
   switch (type) {
     case MESSAGE_TYPES.CONVERSATION_LOADED:
@@ -83,6 +89,21 @@ async function handleMessage(message, sender) {
 
     case MESSAGE_TYPES.BATCH_GET_BACKUPS:
       return await handleBatchGetBackups(payload);
+
+    case MESSAGE_TYPES.BACKUP_START:
+      return startBackup();
+
+    case MESSAGE_TYPES.BACKUP_PAUSE:
+      return pauseBackup();
+
+    case MESSAGE_TYPES.BACKUP_RESUME:
+      return resumeBackup();
+
+    case MESSAGE_TYPES.BACKUP_STOP:
+      return stopBackup();
+
+    case MESSAGE_TYPES.BACKUP_STATUS:
+      return getBackupStatus();
 
     default:
       throw new Error(`Unknown message type: ${type}`);

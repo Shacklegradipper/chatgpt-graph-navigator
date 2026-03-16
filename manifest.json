@@ -23,7 +23,8 @@
     "sidePanel",
     "tabs",
     "scripting",
-    "webRequest"
+    "webRequest",
+    "cookies"
   ],
   "host_permissions": [
     "https://chatgpt.com/*",

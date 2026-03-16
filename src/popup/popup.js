@@ -440,9 +440,15 @@ function createBackupSettingsHTML() {
           <div class="backup-progress-text" id="backup-progress-text">Preparing...</div>
         </div>
 
-        <div class="backup-actions">
+        <div class="backup-actions" id="backup-actions">
           <button class="secondary" id="backup-start-btn" style="flex: 1;">
             Batch Backup
+          </button>
+          <button class="secondary" id="backup-pause-btn" style="flex: 1; display: none;">
+            Pause
+          </button>
+          <button class="secondary" id="backup-stop-btn" style="flex: 1; display: none;">
+            Stop
           </button>
           <button class="secondary" id="manage-backups-btn" style="flex: 1;">
             Manage Backups
@@ -466,8 +472,78 @@ function createBackupSettingsHTML() {
  */
 function bindBackupSettingsEvents() {
   const startBtn = document.getElementById('backup-start-btn');
+  const pauseBtn = document.getElementById('backup-pause-btn');
+  const stopBtn = document.getElementById('backup-stop-btn');
   const restoreToggle = document.getElementById('restore-mode-toggle');
   const manageBtn = document.getElementById('manage-backups-btn');
+
+  const progressEl = document.getElementById('backup-progress');
+  const fillEl = document.getElementById('backup-progress-fill');
+  const textEl = document.getElementById('backup-progress-text');
+
+  function showRunningUI() {
+    if (startBtn) startBtn.style.display = 'none';
+    if (pauseBtn) { pauseBtn.style.display = ''; pauseBtn.textContent = 'Pause'; }
+    if (stopBtn) stopBtn.style.display = '';
+    if (progressEl) progressEl.classList.add('active');
+  }
+
+  function showIdleUI() {
+    if (startBtn) { startBtn.style.display = ''; startBtn.disabled = false; startBtn.textContent = 'Batch Backup'; }
+    if (pauseBtn) pauseBtn.style.display = 'none';
+    if (stopBtn) stopBtn.style.display = 'none';
+  }
+
+  function updateProgressUI(data) {
+    if (!data) return;
+    if (fillEl && data.total > 0) {
+      fillEl.style.width = `${Math.round((data.completed / data.total) * 100)}%`;
+    }
+    if (textEl) {
+      if (data.status === 'paused') {
+        textEl.textContent = `Paused: ${data.completed}/${data.total}`;
+      } else if (data.status === 'idle' && data.total > 0) {
+        textEl.textContent = `Done! ${data.success} saved, ${data.skipped} skipped, ${data.failed} failed`;
+      } else {
+        textEl.textContent = `${data.completed}/${data.total}: ${data.currentTitle || ''}`;
+      }
+    }
+  }
+
+  // Listen for progress broadcasts from background
+  chrome.runtime.onMessage.addListener((message) => {
+    if (message.type === 'BACKUP_PROGRESS') {
+      const data = message.payload;
+      updateProgressUI(data);
+
+      if (data.status === 'running') {
+        showRunningUI();
+      } else if (data.status === 'paused') {
+        showRunningUI();
+        if (pauseBtn) pauseBtn.textContent = 'Resume';
+      } else if (data.status === 'idle') {
+        showIdleUI();
+        // Refresh backup count
+        loadBackupState().then(() => {
+          const statsEl = document.getElementById('backup-stats');
+          if (statsEl) statsEl.innerHTML = `Backed up conversations: <strong>${backupCount}</strong>`;
+        });
+      }
+    }
+  });
+
+  // On popup open, check if backup is already running
+  chrome.runtime.sendMessage({ type: MESSAGE_TYPES.BACKUP_STATUS }).then(resp => {
+    const data = resp?.data;
+    if (data && data.status !== 'idle') {
+      updateProgressUI(data);
+      if (data.status === 'running') showRunningUI();
+      else if (data.status === 'paused') {
+        showRunningUI();
+        if (pauseBtn) pauseBtn.textContent = 'Resume';
+      }
+    }
+  }).catch(() => {});
 
   if (manageBtn) {
     manageBtn.addEventListener('click', () => {
@@ -478,53 +554,41 @@ function bindBackupSettingsEvents() {
   if (startBtn) {
     startBtn.addEventListener('click', async () => {
       startBtn.disabled = true;
-      startBtn.textContent = 'Backing up...';
-
-      const progressEl = document.getElementById('backup-progress');
-      const fillEl = document.getElementById('backup-progress-fill');
-      const textEl = document.getElementById('backup-progress-text');
+      startBtn.textContent = 'Starting...';
       if (progressEl) progressEl.classList.add('active');
 
-      // Listen for progress messages from content script
-      const progressListener = (message) => {
-        if (message.type === 'BACKUP_PROGRESS') {
-          const { current, total, title } = message.payload || {};
-          if (fillEl && total > 0) {
-            fillEl.style.width = `${Math.round((current / total) * 100)}%`;
-          }
-          if (textEl) {
-            textEl.textContent = `${current}/${total}: ${title || ''}`;
-          }
-        }
-      };
-      chrome.runtime.onMessage.addListener(progressListener);
-
       try {
-        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        if (!tab?.id) throw new Error('No active ChatGPT tab');
-
-        const response = await chrome.tabs.sendMessage(tab.id, { type: MESSAGE_TYPES.BACKUP_START });
-
-        chrome.runtime.onMessage.removeListener(progressListener);
-
-        if (response?.success) {
-          const { saved, skipped, failed } = response;
-          if (textEl) textEl.textContent = `Done! ${saved} saved, ${skipped} skipped, ${failed} failed`;
-          if (fillEl) fillEl.style.width = '100%';
-          // Refresh count
-          await loadBackupState();
-          const statsEl = document.getElementById('backup-stats');
-          if (statsEl) statsEl.innerHTML = `Backed up conversations: <strong>${backupCount}</strong>`;
+        const resp = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.BACKUP_START });
+        const result = resp?.data;
+        if (result?.error) {
+          if (textEl) textEl.textContent = `Error: ${result.error}`;
+          showIdleUI();
         } else {
-          if (textEl) textEl.textContent = `Error: ${response?.error || 'Unknown'}`;
+          showRunningUI();
         }
       } catch (err) {
-        chrome.runtime.onMessage.removeListener(progressListener);
         if (textEl) textEl.textContent = `Error: ${err.message}`;
+        showIdleUI();
       }
+    });
+  }
 
-      startBtn.disabled = false;
-      startBtn.textContent = 'Batch Backup';
+  if (pauseBtn) {
+    pauseBtn.addEventListener('click', async () => {
+      if (pauseBtn.textContent === 'Pause') {
+        await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.BACKUP_PAUSE });
+        pauseBtn.textContent = 'Resume';
+      } else {
+        await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.BACKUP_RESUME });
+        pauseBtn.textContent = 'Pause';
+      }
+    });
+  }
+
+  if (stopBtn) {
+    stopBtn.addEventListener('click', async () => {
+      await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.BACKUP_STOP });
+      showIdleUI();
     });
   }
 
@@ -533,7 +597,6 @@ function bindBackupSettingsEvents() {
       restoreModeEnabled = restoreToggle.checked;
       await chrome.storage.local.set({ [STORAGE_KEYS.RESTORE_MODE_ENABLED]: restoreModeEnabled });
 
-      // Notify content script to enable/disable restore
       try {
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
         if (tab?.id) {

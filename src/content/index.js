@@ -25,7 +25,6 @@ import { navigateToMessage, getCurrentDisplayedPath } from './utils/branch-navig
 import { initCollapseManager, setupSettingsListener } from './collapse/collapse-manager.js';
 import { toggleFloatingPanel, toggleClickThrough, toggleLock } from './ui/floating-panel.js';
 import { initRestoreBridge, autoConfigRestore, enableRestore, disableRestore } from './backup/restore-bridge.js';
-import { startBatchBackup } from './backup/backup-manager.js';
 
 // 全局观察器实例
 let urlObserver = null;
@@ -105,27 +104,6 @@ function setupMessageListener() {
         toggleLock().then(() => sendResponse({ success: true })).catch(err => sendResponse({ success: false, error: err?.message || String(err) }));
         return true;
       }
-    }
-
-    // 批量备份触发
-    if (message.type === MESSAGE_TYPES.BACKUP_START) {
-      (async () => {
-        try {
-          const result = await startBatchBackup((current, total, title) => {
-            // 通过 runtime 消息回报进度给 popup（popup 可能已关闭，忽略错误）
-            try {
-              chrome.runtime.sendMessage({
-                type: 'BACKUP_PROGRESS',
-                payload: { current, total, title }
-              });
-            } catch (e) { /* popup closed */ }
-          });
-          sendResponse({ success: true, saved: result.success, skipped: result.skipped, failed: result.failed });
-        } catch (err) {
-          sendResponse({ success: false, error: err.message });
-        }
-      })();
-      return true;
     }
 
     // Restore mode toggle from popup
