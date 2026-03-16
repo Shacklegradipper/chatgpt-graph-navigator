@@ -185,9 +185,13 @@ export async function startBatchBackup(onProgress) {
       // 获取完整对话 JSON
       const fullData = await apiFetch(`${API_BASE}/conversation/${conv.id}`, token);
 
-      // Attach resolved workspace name from accounts API
-      if (fullData.workspace_id && workspaceMap[fullData.workspace_id]) {
-        fullData._workspace_name = workspaceMap[fullData.workspace_id];
+      // conversation detail API doesn't include workspace_id,
+      // so carry it over from the list API response
+      if (conv.workspace_id) {
+        fullData.workspace_id = conv.workspace_id;
+        if (workspaceMap[conv.workspace_id]) {
+          fullData._workspace_name = workspaceMap[conv.workspace_id];
+        }
       }
 
       // 发送到 background 存储
