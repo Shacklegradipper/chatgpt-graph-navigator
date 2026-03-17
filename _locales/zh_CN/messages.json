@@ -472,5 +472,9 @@
   },
   "debugLogError": {
     "message": "错误"
+  },
+
+  "backupsSectionTitle": {
+    "message": "备份"
   }
 }

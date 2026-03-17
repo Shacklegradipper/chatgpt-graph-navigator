@@ -17,10 +17,11 @@ export function initRestoreBridge() {
 
     if (type === 'CG_RESTORE_REQUEST') {
       await handleRestoreRequest(payload);
-    } else if (type === 'CG_RESTORE_LIST_REQUEST') {
-      await handleRestoreListRequest();
     }
   });
+
+  // 发送 i18n 字符串到 main world
+  sendI18nToMainWorld();
 
   console.log('[RestoreBridge] Initialized');
 }
@@ -53,24 +54,28 @@ async function handleRestoreRequest(payload) {
 }
 
 /**
- * 处理备份列表请求（返回所有备份元数据，用于侧边栏注入）
+ * 发送 i18n 字符串到 main world
  */
-async function handleRestoreListRequest() {
+function sendI18nToMainWorld() {
+  const strings = {
+    backupsSectionTitle: chrome.i18n.getMessage('backupsSectionTitle') || 'Backups'
+  };
+  window.postMessage({ type: 'CG_SIDEBAR_I18N', payload: strings }, '*');
+}
+
+/**
+ * 发送备份列表元数据到 main world
+ */
+async function sendBackupListToMainWorld() {
   try {
     const response = await chrome.runtime.sendMessage({
       type: MESSAGE_TYPES.GET_ALL_BACKUPS
     });
-
-    window.postMessage({
-      type: 'CG_RESTORE_LIST_RESPONSE',
-      payload: response?.data || response?.payload || []
-    }, '*');
+    const metas = response?.data || response?.payload || [];
+    window.postMessage({ type: 'CG_SIDEBAR_BACKUP_LIST', payload: metas }, '*');
   } catch (err) {
-    console.error('[RestoreBridge] Failed to get backup list:', err);
-    window.postMessage({
-      type: 'CG_RESTORE_LIST_RESPONSE',
-      payload: []
-    }, '*');
+    console.error('[RestoreBridge] Failed to send backup list:', err);
+    window.postMessage({ type: 'CG_SIDEBAR_BACKUP_LIST', payload: [] }, '*');
   }
 }
 
@@ -93,6 +98,10 @@ export async function enableRestore() {
         backedUpIds: ids
       }
     }, '*');
+
+    // 发送 i18n 和备份列表到 main world 用于侧边栏渲染
+    sendI18nToMainWorld();
+    await sendBackupListToMainWorld();
 
     // 持久化状态
     await chrome.storage.local.set({ [STORAGE_KEYS.RESTORE_MODE_ENABLED]: true });

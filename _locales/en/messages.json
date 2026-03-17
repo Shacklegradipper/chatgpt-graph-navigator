@@ -472,5 +472,9 @@
   },
   "debugLogError": {
     "message": "Errors"
+  },
+
+  "backupsSectionTitle": {
+    "message": "Backups"
   }
 }
