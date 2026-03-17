@@ -24,7 +24,7 @@ import { conversationState } from './state/conversation-state.js';
 import { navigateToMessage, getCurrentDisplayedPath } from './utils/branch-navigator.js';
 import { initCollapseManager, setupSettingsListener } from './collapse/collapse-manager.js';
 import { toggleFloatingPanel, toggleClickThrough, toggleLock } from './ui/floating-panel.js';
-import { initRestoreBridge, autoConfigRestore, enableRestore, disableRestore } from './backup/restore-bridge.js';
+import { initRestoreBridge, autoConfigRestore, enableRestore, disableRestore, isRestoredConversation } from './backup/restore-bridge.js';
 
 // 全局观察器实例
 let urlObserver = null;
@@ -728,6 +728,12 @@ async function waitForPageReady() {
  */
 async function fetchAndProcessConversation(conversationId) {
   try {
+    // Skip if this is a restored backup conversation (restore mode on + ID in backup DB)
+    if (await isRestoredConversation(conversationId)) {
+      log('info', 'Content', `Skipping restored backup conversation: ${conversationId}`);
+      return;
+    }
+
     log('info', 'Content', 'Fetching conversation data...');
 
     // 1. 调用 API

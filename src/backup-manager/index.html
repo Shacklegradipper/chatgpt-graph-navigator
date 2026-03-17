@@ -240,18 +240,72 @@
       background: rgba(255,100,100,0.2);
     }
 
-    /* Table */
-    .table-container {
+    /* Workspace Folders */
+    .ws-folder {
       background: var(--color-surface);
       border: 1px solid var(--color-border);
       border-radius: 12px;
+      margin-bottom: 12px;
       overflow: hidden;
     }
 
-    table {
+    .ws-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+
+    .ws-header:hover {
+      background: var(--color-bg);
+    }
+
+    .ws-arrow {
+      font-size: 11px;
+      color: var(--color-text-tertiary);
+      width: 14px;
+      text-align: center;
+    }
+
+    .ws-count {
+      margin-left: auto;
+      font-size: 13px;
+      color: var(--color-text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .ws-check {
+      width: 16px;
+      height: 16px;
+      cursor: pointer;
+      accent-color: var(--color-accent);
+    }
+
+    .ws-body {
+      border-top: 1px solid var(--color-border-light);
+      max-height: 600px;
+      overflow-y: auto;
+    }
+
+    .ws-body table {
       width: 100%;
       border-collapse: collapse;
     }
+
+    .ws-body thead {
+      background: var(--color-bg);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .load-sentinel {
+      height: 1px;
+    }
+
+    /* Table (inside folders) */
+    table { width: 100%; border-collapse: collapse; }
 
     thead {
       background: var(--color-bg);
@@ -387,44 +441,6 @@
       opacity: 0.4;
     }
 
-    /* Pagination */
-    .pagination {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 12px;
-      padding: 20px;
-    }
-
-    .page-btn {
-      padding: 8px 16px;
-      border: 1px solid var(--color-border);
-      border-radius: 6px;
-      background: var(--color-surface);
-      font-family: var(--font-body);
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      color: var(--color-text);
-      transition: all 0.15s;
-    }
-
-    .page-btn:hover:not(:disabled) {
-      background: var(--color-bg);
-      border-color: var(--color-text-tertiary);
-    }
-
-    .page-btn:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-
-    .page-info {
-      font-size: 13px;
-      color: var(--color-text-secondary);
-      font-variant-numeric: tabular-nums;
-    }
-
     /* Loading overlay */
     .loading-overlay {
       display: none;
@@ -504,9 +520,6 @@
 
     <div class="toolbar">
       <input type="text" class="search-input" id="search-input" placeholder="Search by title or content...">
-      <select class="filter-select" id="workspace-filter">
-        <option value="">All Workspaces</option>
-      </select>
       <input type="date" class="filter-date" id="date-from" title="From date">
       <input type="date" class="filter-date" id="date-to" title="To date">
     </div>
@@ -519,30 +532,12 @@
       <button class="action-btn danger" id="delete-btn">Delete</button>
     </div>
 
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th class="col-checkbox"><input type="checkbox" id="select-all"></th>
-            <th class="sortable" data-sort="title">Title <span class="sort-arrow"></span></th>
-            <th class="col-preview">Preview</th>
-            <th class="sortable" data-sort="backup_time">Backup Time <span class="sort-arrow"></span></th>
-            <th class="col-workspace sortable" data-sort="workspace_name">Space <span class="sort-arrow"></span></th>
-            <th class="col-msgs sortable" data-sort="message_count">Msgs <span class="sort-arrow"></span></th>
-            <th class="col-created sortable" data-sort="create_time">Created <span class="sort-arrow"></span></th>
-            <th class="col-updated sortable" data-sort="update_time">Updated <span class="sort-arrow"></span></th>
-          </tr>
-        </thead>
-        <tbody id="table-body"></tbody>
-      </table>
+    <div id="folders-container"></div>
 
-      <div class="empty-state" id="empty-state" style="display:none;">
-        <div class="empty-icon">&#128451;</div>
-        <p>No backups found</p>
-      </div>
+    <div class="empty-state" id="empty-state" style="display:none;">
+      <div class="empty-icon">&#128451;</div>
+      <p>No backups found</p>
     </div>
-
-    <div class="pagination" id="pagination"></div>
   </div>
 
   <div class="loading-overlay" id="loading-overlay">
@@ -550,6 +545,6 @@
     <p id="loading-text">Loading backups...</p>
   </div>
 
-  <script src="../../dist/backup-manager.js" type="module"></script>
+  <script src="../../dist/backup-manager.js"></script>
 </body>
 </html>

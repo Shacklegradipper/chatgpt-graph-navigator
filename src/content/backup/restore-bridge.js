@@ -118,6 +118,25 @@ export async function disableRestore() {
 }
 
 /**
+ * 检查当前是否处于恢复模式，且指定 ID 是备份对话
+ * 用于防止 content script 重复处理恢复模式加载的备份对话
+ */
+export async function isRestoredConversation(conversationId) {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.RESTORE_MODE_ENABLED);
+    if (result[STORAGE_KEYS.RESTORE_MODE_ENABLED] !== true) return false;
+
+    const response = await chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.RESTORE_GET_IDS
+    });
+    const ids = response?.data || response?.payload || [];
+    return ids.includes(conversationId);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 根据存储状态自动启用/禁用恢复模式
  */
 export async function autoConfigRestore() {
