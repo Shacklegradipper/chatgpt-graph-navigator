@@ -195,15 +195,17 @@
   }
 
   function findInsertionPoint(nav) {
-    // 找到包含 a[href^="/c/"] 的 section（即"最近"区域）
-    const sections = nav.querySelectorAll(':scope > div.group\\/sidebar-expando-section, :scope > div[class*="sidebar-expando"]');
+    // 通过 h2 文本找到"最近"/"Recent" section
+    const sections = nav.querySelectorAll(':scope > div.group\\/sidebar-expando-section:not(#cg-backup-section)');
     for (const section of sections) {
-      if (section.querySelector('a[href^="/c/"]')) {
-        return section;
+      const h2 = section.querySelector('h2');
+      if (h2) {
+        const text = h2.textContent.trim();
+        if (text === '最近' || text === 'Recent' || text === 'Recents') return section;
       }
     }
-    // fallback: 最后一个 section
-    return sections.length > 0 ? sections[sections.length - 1] : null;
+    // fallback: 第二个 section（通常是最近），或最后一个
+    return sections.length > 1 ? sections[1] : (sections.length > 0 ? sections[sections.length - 1] : null);
   }
 
   function injectSidebarStyles() {
@@ -239,6 +241,9 @@
       .cg-section-draggable.dragging {
         opacity: 0.4;
       }
+      .cg-section-draggable > button {
+        position: relative;
+      }
       .cg-drag-handle {
         cursor: grab;
         opacity: 0;
@@ -247,7 +252,10 @@
         color: var(--text-tertiary, #999);
         user-select: none;
         flex-shrink: 0;
-        margin-left: auto;
+        position: absolute;
+        right: 4px;
+        top: 50%;
+        transform: translateY(-50%);
       }
       .cg-section-draggable:hover .cg-drag-handle {
         opacity: 0.4;
@@ -283,9 +291,14 @@
 
   function createBackupSection(title) {
     const nav = findSidebarNav();
-    // 找到原生 section 来克隆精确结构
-    const nativeSection = nav ? nav.querySelector(':scope > div.group\\/sidebar-expando-section') : null;
+    // 读取原生 section 的 class
+    const nativeSection = nav ? nav.querySelector(':scope > div.group\\/sidebar-expando-section:not(#cg-backup-section)') : null;
     const nativeBtn = nativeSection ? nativeSection.querySelector(':scope > button') : null;
+
+    // 尝试从原生 section 读取 SVG sprite href，如果读不到则延迟补充
+    const nativeSvg = nativeBtn ? nativeBtn.querySelector('svg') : null;
+    const spriteHref = nativeSvg ? (nativeSvg.querySelector('use')?.getAttribute('href') || '') : '';
+    const svgClass = nativeSvg ? nativeSvg.getAttribute('class') : 'h-3 w-3 shrink-0 group-hover/sidebar-expando-section:block';
 
     const section = document.createElement('div');
     section.id = 'cg-backup-section';
@@ -293,32 +306,76 @@
 
     const headerBtn = document.createElement('button');
     headerBtn.className = nativeBtn ? nativeBtn.className : 'text-token-text-tertiary flex w-full items-center justify-start gap-0.5 px-4 py-1.5';
-    headerBtn.setAttribute('aria-expanded', 'true');
 
-    // 克隆原生按钮内部 HTML，替换标题文本
-    if (nativeBtn) {
-      headerBtn.innerHTML = nativeBtn.innerHTML;
-      const h2 = headerBtn.querySelector('h2');
-      if (h2) h2.textContent = title;
+    // 读取持久化的展开状态，默认展开
+    const savedExpanded = localStorage.getItem(BACKUP_EXPANDED_KEY);
+    const initialExpanded = savedExpanded === null ? true : savedExpanded === 'true';
+    headerBtn.setAttribute('aria-expanded', String(initialExpanded));
+
+    // 手动构建精确的原生结构
+    const h2 = document.createElement('h2');
+    h2.className = '__menu-label';
+    h2.setAttribute('data-no-spacing', 'true');
+    h2.textContent = title;
+    headerBtn.appendChild(h2);
+
+    // 创建 SVG chevron — 紧跟 h2 文字后面，与原生一致
+    function appendChevronSvg(href, cls) {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('width', '16');
+      svg.setAttribute('height', '16');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('data-rtl-flip', '');
+      svg.setAttribute('class', cls);
+      svg.dataset.cgChevron = 'true';
+      svg.style.transition = 'transform 0.15s ease';
+      svg.style.transform = initialExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+      const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+      use.setAttribute('href', href);
+      use.setAttribute('fill', 'currentColor');
+      svg.appendChild(use);
+      // 插入到 h2 之后（紧跟文字）
+      h2.insertAdjacentElement('afterend', svg);
+    }
+
+    if (spriteHref) {
+      appendChevronSvg(spriteHref, svgClass);
     } else {
-      const h2 = document.createElement('h2');
-      h2.className = '__menu-label';
-      h2.setAttribute('data-no-spacing', 'true');
-      h2.textContent = title;
-      headerBtn.appendChild(h2);
+      // SVG 还没就绪，延迟 500ms 再尝试读取
+      setTimeout(() => {
+        if (headerBtn.querySelector('svg')) return; // 已经有了
+        const navRetry = findSidebarNav();
+        const retrySection = navRetry ? navRetry.querySelector(':scope > div.group\\/sidebar-expando-section:not(#cg-backup-section)') : null;
+        const retryBtn = retrySection ? retrySection.querySelector(':scope > button') : null;
+        const retrySvg = retryBtn ? retryBtn.querySelector('svg') : null;
+        const retryHref = retrySvg ? (retrySvg.querySelector('use')?.getAttribute('href') || '') : '';
+        const retryCls = retrySvg ? retrySvg.getAttribute('class') : '';
+        if (retryHref) {
+          appendChevronSvg(retryHref, retryCls);
+        }
+      }, 500);
     }
 
     section.appendChild(headerBtn);
 
     const content = document.createElement('div');
     content.id = 'cg-backup-content';
+    content.style.display = initialExpanded ? '' : 'none';
     section.appendChild(content);
 
     headerBtn.addEventListener('click', (e) => {
       if (e.target.closest('.cg-drag-handle')) return;
       const expanded = headerBtn.getAttribute('aria-expanded') === 'true';
-      headerBtn.setAttribute('aria-expanded', String(!expanded));
-      content.style.display = expanded ? 'none' : '';
+      const newExpanded = !expanded;
+      headerBtn.setAttribute('aria-expanded', String(newExpanded));
+      content.style.display = newExpanded ? '' : 'none';
+      // 旋转 chevron
+      const chevronSvg = headerBtn.querySelector('[data-cg-chevron]');
+      if (chevronSvg) {
+        chevronSvg.style.transform = newExpanded ? 'rotate(90deg)' : 'rotate(0deg)';
+      }
+      // 持久化
+      localStorage.setItem(BACKUP_EXPANDED_KEY, String(newExpanded));
     });
 
     return section;
@@ -460,6 +517,21 @@
     const nav = findSidebarNav();
     if (!nav) return;
 
+    // 确保原生 section（项目/最近）已经渲染，否则延迟重试
+    const nativeSections = nav.querySelectorAll(':scope > div.group\\/sidebar-expando-section:not(#cg-backup-section)');
+    if (nativeSections.length === 0) {
+      // 原生 section 还没渲染，等待 DOM 变化后重试
+      const waitObserver = new MutationObserver(() => {
+        const sections = nav.querySelectorAll(':scope > div.group\\/sidebar-expando-section:not(#cg-backup-section)');
+        if (sections.length > 0) {
+          waitObserver.disconnect();
+          renderBackupSidebar();
+        }
+      });
+      waitObserver.observe(nav, { childList: true, subtree: true });
+      return;
+    }
+
     // Remove existing section
     const existing = document.getElementById('cg-backup-section');
     if (existing) existing.remove();
@@ -509,10 +581,20 @@
     if (sidebarObserver) sidebarObserver.disconnect();
     sidebarObserver = new MutationObserver(() => {
       if (isReordering) return;
-      if (!document.getElementById('cg-backup-section') && restoreEnabled && backupMetas.length > 0) {
-        clearTimeout(sidebarDebounceTimer);
-        sidebarDebounceTimer = setTimeout(() => renderBackupSidebar(), 100);
-      }
+      clearTimeout(sidebarDebounceTimer);
+      sidebarDebounceTimer = setTimeout(() => {
+        // 如果 backup section 被 React 移除了，重新渲染
+        if (!document.getElementById('cg-backup-section') && restoreEnabled && backupMetas.length > 0) {
+          renderBackupSidebar();
+          return;
+        }
+        // 检查原生 section 是否丢失了拖拽手柄（React 重新渲染会清除）
+        const sections = getDraggableSections(nav);
+        const needsHandles = sections.some(s => !s.querySelector('.cg-drag-handle'));
+        if (needsHandles) {
+          makeSectionsDraggable(nav);
+        }
+      }, 150);
     });
     sidebarObserver.observe(nav, { childList: true, subtree: true });
   }
@@ -546,6 +628,7 @@
   // ==================== 拖拽排序 ====================
 
   const SECTION_ORDER_KEY = 'cg_sidebar_section_order';
+  const BACKUP_EXPANDED_KEY = 'cg_backup_section_expanded';
 
   function getSectionId(section) {
     if (section.id === 'cg-backup-section') return 'backup';
@@ -574,7 +657,7 @@
     if (!order || order.length === 0) return;
 
     const sections = getDraggableSections(nav);
-    if (sections.length === 0) return;
+    if (sections.length < 2) return;
 
     // Build map of id → element
     const map = {};
@@ -594,27 +677,40 @@
       ordered.push(s);
     }
 
-    // Find the position of the first section to use as anchor
+    // 找到第一个 section 之前的非 section 元素作为稳定锚点
     const firstSection = sections[0];
-    const anchor = firstSection.nextSibling;
-    const parent = firstSection.parentNode;
+    const stableAnchor = firstSection.previousSibling;
 
     isReordering = true;
+    // 先把所有 section 从 DOM 中移除
     for (const s of ordered) {
-      parent.insertBefore(s, anchor);
+      s.remove();
+    }
+    // 再按顺序插入到稳定锚点之后
+    let insertAfter = stableAnchor;
+    for (const s of ordered) {
+      if (insertAfter && insertAfter.nextSibling) {
+        nav.insertBefore(s, insertAfter.nextSibling);
+      } else {
+        nav.appendChild(s);
+      }
+      insertAfter = s;
     }
     isReordering = false;
   }
 
   function getDraggableSections(nav) {
-    return Array.from(nav.querySelectorAll(':scope > div.group\\/sidebar-expando-section, :scope > #cg-backup-section'));
+    // 所有 sidebar-expando-section（包括原生的项目、最近和我们的 backup）
+    return Array.from(nav.querySelectorAll(':scope > div.group\\/sidebar-expando-section'));
   }
 
   function makeSectionsDraggable(nav) {
     const sections = getDraggableSections(nav);
 
     for (const section of sections) {
-      if (section.dataset.cgDraggable) continue;
+      // 如果已经有拖拽手柄，跳过
+      if (section.querySelector('.cg-drag-handle')) continue;
+
       section.dataset.cgDraggable = 'true';
       section.classList.add('cg-section-draggable');
 
