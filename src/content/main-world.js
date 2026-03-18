@@ -23,6 +23,7 @@
   let i18nStrings = {};
   let backupMetas = [];
   let sidebarObserver = null;
+  let navParentObserver = null;
   let sidebarDebounceTimer = null;
   let isReordering = false; // 防止拖拽重排时触发 MutationObserver
 
@@ -597,6 +598,26 @@
       }, 150);
     });
     sidebarObserver.observe(nav, { childList: true, subtree: true });
+
+    // 监听 nav 父元素，检测 nav 本身被替换的情况（大范围刷新时）
+    startNavParentObserver(nav);
+  }
+
+  function startNavParentObserver(currentNav) {
+    if (navParentObserver) navParentObserver.disconnect();
+    const parent = currentNav.parentElement;
+    if (!parent) return;
+    navParentObserver = new MutationObserver(() => {
+      const newNav = findSidebarNav();
+      if (!newNav || newNav === currentNav) return;
+      // nav 被替换了，重新注入
+      navParentObserver.disconnect();
+      navParentObserver = null;
+      if (restoreEnabled && backupMetas.length > 0) {
+        waitForSidebarAndInject();
+      }
+    });
+    navParentObserver.observe(parent, { childList: true });
   }
 
   function waitForSidebarAndInject() {
@@ -622,6 +643,10 @@
     if (sidebarObserver) {
       sidebarObserver.disconnect();
       sidebarObserver = null;
+    }
+    if (navParentObserver) {
+      navParentObserver.disconnect();
+      navParentObserver = null;
     }
   }
 
