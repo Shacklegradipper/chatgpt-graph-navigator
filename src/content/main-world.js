@@ -323,14 +323,15 @@
     const cached = backupMappingCache.get(convId);
     console.log('[MainWorld] Intercepting conversation/init for backup:', convId);
 
-    // 返回一个模拟的 init 响应，让前端认为对话有效
+    // 返回与真实 /conversation/init 一致的响应结构
     const fakeResponse = {
-      conversation_id: convId,
-      title: cached?.title || '',
+      type: 'conversation_detail_metadata',
+      banner_info: null,
+      blocked_features: [],
+      model_limits: [],
+      limits_progress: [],
       default_model_slug: body.requested_default_model || 'gpt-4o',
-      is_archived: false,
-      safe_urls: [],
-      moderation_results: []
+      atlas_mode_enabled: null
     };
 
     return new Response(JSON.stringify(fakeResponse), {
