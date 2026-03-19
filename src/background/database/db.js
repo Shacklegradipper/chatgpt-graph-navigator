@@ -603,6 +603,24 @@ export class Database {
   }
 
   /**
+   * 更新备份的 mapping 和 current_node（用于备份对话继续聊天）
+   * @param {string} conversationId
+   * @param {Object} mapping - 更新后的完整 mapping
+   * @param {string} currentNode - 新的 current_node ID
+   * @returns {Promise<void>}
+   */
+  async updateBackupMapping(conversationId, mapping, currentNode) {
+    const existing = await this.getBackup(conversationId);
+    if (!existing) throw new Error(`Backup not found: ${conversationId}`);
+
+    existing.raw.mapping = mapping;
+    existing.raw.current_node = currentNode;
+    existing.raw.update_time = Date.now() / 1000;
+
+    await this.saveBackup(existing.raw);
+  }
+
+  /**
    * 关闭数据库
    */
   close() {

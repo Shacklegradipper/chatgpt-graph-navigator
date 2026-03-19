@@ -31,6 +31,14 @@
   const pendingRequests = new Map();
   let requestIdCounter = 0;
 
+  // ==================== Backup Chat 状态 ====================
+  // 备份对话的本地 mapping 缓存
+  const backupMappingCache = new Map(); // convId → { mapping, currentNode, title }
+  // Shadow conversation 追踪
+  const shadowConversations = new Map(); // backupConvId → { shadowConvId, msgIdMap, lastShadowMsgId }
+  // 上下文轮数设置（0 = 全部）
+  let backupChatContextRounds = 0;
+
   // UUID 正则
   const CONV_URL_RE = /\/backend-api\/conversation\/([0-9a-f-]{36})$/;
 
@@ -124,6 +132,8 @@
   const interceptedFetch = async function(...args) {
     const [input, options] = args;
     const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+    // 统一提取 method 和 body（兼容 fetch(Request) 和 fetch(url, options) 两种调用方式）
+    const method = (options?.method || (input instanceof Request ? input.method : '') || 'GET').toUpperCase();
 
     // Token 捕获
     captureToken(url, options);
@@ -133,13 +143,72 @@
       return originalFetch(...args);
     }
 
-    // 检查是否是单个对话请求
+    // 检查是否是单个对话请求（GET）
     const convMatch = url.match(CONV_URL_RE);
     if (convMatch) {
       const convId = convMatch[1];
       if (backedUpIds.has(convId)) {
         return handleConversationRestore(convId, args);
       }
+    }
+
+    // 拦截备份对话相关的子路径 GET 请求（textdocs 等）
+    const convSubpathMatch = url.match(/\/backend-api\/conversation\/([0-9a-f-]{36})\//);
+    if (convSubpathMatch && method === 'GET') {
+      const convId = convSubpathMatch[1];
+      if (backedUpIds.has(convId)) {
+        // 对 textdocs 等子路径返回空响应，避免 404
+        if (url.includes('/textdocs')) {
+          return new Response(JSON.stringify({ textdocs: [] }), {
+            status: 200, headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        // stream_status 等其他子路径透传（服务器通常返回 200）
+      }
+    }
+
+    // 以下拦截需要读取 body，统一提取
+    async function extractBody() {
+      if (options?.body != null) {
+        return typeof options.body === 'string' ? options.body : await new Response(options.body).text();
+      }
+      if (input instanceof Request) {
+        return await input.clone().text();
+      }
+      return null;
+    }
+
+    // 拦截 POST /backend-api/conversation/init（备份对话初始化）
+    if (url.includes('/backend-api/conversation/init') && method === 'POST') {
+      try {
+        const bodyStr = await extractBody();
+        if (bodyStr) {
+          const body = JSON.parse(bodyStr);
+          if (body.conversation_id && backedUpIds.has(body.conversation_id)) {
+            return handleBackupConversationInit(body);
+          }
+        }
+      } catch (e) { /* 解析失败，透传 */ }
+    }
+
+    // 拦截 POST /backend-api/f/conversation 或 /backend-api/conversation（发送消息）
+    const isConvPost = (url.includes('/backend-api/f/conversation') || url.includes('/backend-api/conversation'))
+      && !url.match(CONV_URL_RE)
+      && !url.includes('/conversation/init')
+      && !url.includes('/conversation/prepare')
+      && !url.includes('/stream_status')
+      && !url.includes('/textdocs')
+      && method === 'POST';
+    if (isConvPost) {
+      try {
+        const bodyStr = await extractBody();
+        if (bodyStr) {
+          const body = JSON.parse(bodyStr);
+          if (body.conversation_id && backedUpIds.has(body.conversation_id)) {
+            return handleBackupChatPost(body, args);
+          }
+        }
+      } catch (e) { /* 解析失败，透传 */ }
     }
 
     return originalFetch(...args);
@@ -164,6 +233,12 @@
         const backupData = await requestBackupData(convId);
 
         if (backupData) {
+          // 缓存 mapping 用于后续聊天
+          backupMappingCache.set(convId, {
+            mapping: backupData.mapping,
+            currentNode: backupData.current_node,
+            title: backupData.title
+          });
           return new Response(JSON.stringify(backupData), {
             status: 200,
             headers: { 'Content-Type': 'application/json' }
@@ -178,6 +253,11 @@
       console.log(`[MainWorld] Fetch error for ${convId}, trying backup`);
       const backupData = await requestBackupData(convId);
       if (backupData) {
+        backupMappingCache.set(convId, {
+          mapping: backupData.mapping,
+          currentNode: backupData.current_node,
+          title: backupData.title
+        });
         return new Response(JSON.stringify(backupData), {
           status: 200,
           headers: { 'Content-Type': 'application/json' }
@@ -185,6 +265,264 @@
       }
       throw err;
     }
+  }
+
+  // ==================== Backup Chat 核心函数 ====================
+
+  /**
+   * 从 mapping 树中提取指定分支的完整对话历史
+   */
+  function buildBranchHistory(mapping, parentMessageId) {
+    const path = [];
+    let nodeId = parentMessageId;
+    while (nodeId) {
+      const node = mapping[nodeId];
+      if (!node) break;
+      if (node.message && (node.message.author.role === 'user' || node.message.author.role === 'assistant')) {
+        path.unshift(node);
+      }
+      nodeId = node.parent;
+    }
+
+    if (backupChatContextRounds > 0) {
+      let rounds = 0;
+      let cutIndex = path.length;
+      for (let i = path.length - 1; i >= 0; i--) {
+        if (path[i].message.author.role === 'user') rounds++;
+        if (rounds > backupChatContextRounds) { cutIndex = i + 1; break; }
+      }
+      return path.slice(cutIndex);
+    }
+
+    return path;
+  }
+
+  /**
+   * 将历史消息格式化为上下文字符串
+   */
+  function formatHistoryAsContext(history) {
+    if (history.length === 0) return '';
+    let context = '[以下是之前的对话历史，请基于此上下文继续对话]\n\n';
+    for (const node of history) {
+      const role = node.message.author.role === 'user' ? 'User' : 'Assistant';
+      const parts = node.message.content?.parts || [];
+      const text = parts.filter(p => typeof p === 'string').join('\n');
+      if (text) {
+        context += `${role}: ${text}\n\n`;
+      }
+    }
+    context += '[对话历史结束，以下是用户的新消息]\n\n';
+    return context;
+  }
+
+  /**
+   * 处理备份对话的 /conversation/init 请求，返回伪造的成功响应
+   */
+  function handleBackupConversationInit(body) {
+    const convId = body.conversation_id;
+    const cached = backupMappingCache.get(convId);
+    console.log('[MainWorld] Intercepting conversation/init for backup:', convId);
+
+    // 返回一个模拟的 init 响应，让前端认为对话有效
+    const fakeResponse = {
+      conversation_id: convId,
+      title: cached?.title || '',
+      default_model_slug: body.requested_default_model || 'gpt-4o',
+      is_archived: false,
+      safe_urls: [],
+      moderation_results: []
+    };
+
+    return new Response(JSON.stringify(fakeResponse), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+
+  /**
+   * 处理备份对话中的消息发送
+   */
+  async function handleBackupChatPost(body, fetchArgs) {
+    const backupConvId = body.conversation_id;
+    const parentMsgId = body.parent_message_id;
+    const cached = backupMappingCache.get(backupConvId);
+    if (!cached) {
+      console.warn('[MainWorld] No cached mapping for backup chat');
+      return originalFetch(...fetchArgs);
+    }
+
+    let shadow = shadowConversations.get(backupConvId);
+    const parentInShadow = shadow?.msgIdMap?.get(parentMsgId);
+
+    // 保存用户原始消息文本（注入上下文前）
+    const userMsg = body.messages[0];
+    const originalUserText = userMsg?.content?.parts?.[0];
+
+    if (shadow?.shadowConvId && parentInShadow) {
+      // 后续消息：使用 shadow conversation
+      body.conversation_id = shadow.shadowConvId;
+      body.parent_message_id = parentInShadow;
+    } else {
+      // 首条消息或切换分支：创建新对话
+      delete body.conversation_id;
+
+      const history = buildBranchHistory(cached.mapping, parentMsgId);
+      if (history.length > 0) {
+        const contextPrefix = formatHistoryAsContext(history);
+        if (userMsg?.content?.parts?.[0] && typeof userMsg.content.parts[0] === 'string') {
+          userMsg.content.parts[0] = contextPrefix + userMsg.content.parts[0];
+        }
+      }
+
+      shadow = { shadowConvId: null, msgIdMap: new Map(), lastShadowMsgId: null };
+      shadowConversations.set(backupConvId, shadow);
+    }
+
+    const userMsgBackupId = body.messages[0]?.id;
+
+    // 重建 fetch 参数
+    const [input, options] = fetchArgs;
+    const newOptions = { ...options, body: JSON.stringify(body) };
+
+    const response = await originalFetch(input, newOptions);
+    if (!response.ok) return response;
+
+    // 包装 SSE 流
+    const wrappedBody = wrapSSEStream(
+      response.body, backupConvId, shadow, userMsgBackupId,
+      parentMsgId, cached, originalUserText
+    );
+
+    return new Response(wrappedBody, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers
+    });
+  }
+
+  /**
+   * 重写 SSE 流中的 conversation_id，并捕获新消息
+   */
+  function wrapSSEStream(originalBody, backupConvId, shadow, userMsgBackupId,
+                         parentMsgId, cached, originalUserText) {
+    const reader = originalBody.getReader();
+    const decoder = new TextDecoder();
+    const encoder = new TextEncoder();
+    let buffer = '';
+    let assistantMsgId = null;
+    let assistantMessage = null;
+    let userShadowMsgId = null;
+
+    return new ReadableStream({
+      async pull(controller) {
+        try {
+          const { done, value } = await reader.read();
+          if (done) {
+            if (buffer) controller.enqueue(encoder.encode(buffer));
+            controller.close();
+            onStreamComplete(backupConvId, shadow, userMsgBackupId, userShadowMsgId,
+                             assistantMsgId, assistantMessage, parentMsgId, cached, originalUserText);
+            return;
+          }
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (data.conversation_id && !shadow.shadowConvId) {
+                  shadow.shadowConvId = data.conversation_id;
+                }
+
+                if (data.message?.author?.role === 'user' && !userShadowMsgId) {
+                  userShadowMsgId = data.message.id;
+                }
+
+                if (data.message?.author?.role === 'assistant') {
+                  assistantMsgId = data.message.id;
+                  if (data.message.status === 'finished_successfully') {
+                    assistantMessage = JSON.parse(JSON.stringify(data.message));
+                  }
+                }
+
+                if (data.conversation_id) {
+                  data.conversation_id = backupConvId;
+                }
+
+                controller.enqueue(encoder.encode('data: ' + JSON.stringify(data) + '\n'));
+                continue;
+              } catch (e) { /* 非 JSON，透传 */ }
+            }
+            controller.enqueue(encoder.encode(line + '\n'));
+          }
+        } catch (err) {
+          controller.error(err);
+        }
+      }
+    });
+  }
+
+  /**
+   * 流结束后更新本地 mapping 和 shadow 映射
+   */
+  function onStreamComplete(backupConvId, shadow, userMsgBackupId, userShadowMsgId,
+                            assistantMsgId, assistantMessage, parentMsgId, cached, originalUserText) {
+    if (!assistantMessage || !assistantMsgId) return;
+
+    // 更新 shadow 映射
+    if (userMsgBackupId && userShadowMsgId) {
+      shadow.msgIdMap.set(userMsgBackupId, userShadowMsgId);
+    }
+    const assistantBackupId = assistantMsgId;
+    shadow.msgIdMap.set(assistantBackupId, assistantMsgId);
+    shadow.lastShadowMsgId = assistantMsgId;
+
+    // 更新本地 mapping
+    const mapping = cached.mapping;
+
+    mapping[userMsgBackupId] = {
+      id: userMsgBackupId,
+      message: {
+        id: userMsgBackupId,
+        author: { role: 'user' },
+        content: { content_type: 'text', parts: [typeof originalUserText === 'string' ? originalUserText : ''] },
+        status: 'finished_successfully',
+        create_time: Date.now() / 1000
+      },
+      parent: parentMsgId,
+      children: [assistantBackupId]
+    };
+
+    mapping[assistantBackupId] = {
+      id: assistantBackupId,
+      message: assistantMessage,
+      parent: userMsgBackupId,
+      children: []
+    };
+
+    if (mapping[parentMsgId]) {
+      if (!mapping[parentMsgId].children.includes(userMsgBackupId)) {
+        mapping[parentMsgId].children.push(userMsgBackupId);
+      }
+    }
+
+    cached.currentNode = assistantBackupId;
+
+    // 持久化到 IndexedDB
+    window.postMessage({
+      type: 'CG_BACKUP_UPDATE',
+      payload: {
+        conversationId: backupConvId,
+        mapping: mapping,
+        currentNode: assistantBackupId
+      }
+    }, '*');
+
+    console.log('[MainWorld] Backup mapping updated after chat:', backupConvId);
   }
 
   // ==================== Sidebar DOM 函数 ====================

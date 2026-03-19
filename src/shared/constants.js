@@ -57,7 +57,8 @@ export const MESSAGE_TYPES = {
   BACKUP_STOP: 'BACKUP_STOP',
   BACKUP_STATUS: 'BACKUP_STATUS',
   BATCH_DELETE_BACKUPS: 'BATCH_DELETE_BACKUPS',
-  BATCH_GET_BACKUPS: 'BATCH_GET_BACKUPS'
+  BATCH_GET_BACKUPS: 'BATCH_GET_BACKUPS',
+  BACKUP_UPDATE_MAPPING: 'BACKUP_UPDATE_MAPPING'
 };
 
 // 节点角色
@@ -80,7 +81,9 @@ export const STORAGE_KEYS = {
   // Debug log levels (default: all enabled when debug is on)
   DEBUG_LOG_LEVELS: 'chatgpt_graph_debug_log_levels',
   // Restore mode enabled (default: false)
-  RESTORE_MODE_ENABLED: 'chatgpt_graph_restore_mode_enabled'
+  RESTORE_MODE_ENABLED: 'chatgpt_graph_restore_mode_enabled',
+  // Backup chat context rounds: 0 = all history (default), >0 = last N rounds
+  BACKUP_CHAT_CONTEXT_ROUNDS: 'chatgpt_graph_backup_chat_context_rounds'
 };
 
 // 内容折叠默认设置

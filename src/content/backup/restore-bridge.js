@@ -17,6 +17,8 @@ export function initRestoreBridge() {
 
     if (type === 'CG_RESTORE_REQUEST') {
       await handleRestoreRequest(payload);
+    } else if (type === 'CG_BACKUP_UPDATE') {
+      await handleBackupUpdate(payload);
     }
   });
 
@@ -50,6 +52,21 @@ async function handleRestoreRequest(payload) {
       type: 'CG_RESTORE_RESPONSE',
       payload: { requestId, data: null }
     }, '*');
+  }
+}
+
+/**
+ * 处理备份 mapping 更新（从 main-world 转发到 background）
+ */
+async function handleBackupUpdate(payload) {
+  const { conversationId, mapping, currentNode } = payload;
+  try {
+    await chrome.runtime.sendMessage({
+      type: MESSAGE_TYPES.BACKUP_UPDATE_MAPPING,
+      payload: { conversationId, mapping, currentNode }
+    });
+  } catch (err) {
+    console.error('[RestoreBridge] Failed to update backup mapping:', err);
   }
 }
 

@@ -105,6 +105,9 @@ async function handleMessage(message, sender) {
     case MESSAGE_TYPES.BACKUP_STATUS:
       return getBackupStatus();
 
+    case MESSAGE_TYPES.BACKUP_UPDATE_MAPPING:
+      return await handleBackupUpdateMapping(payload);
+
     default:
       throw new Error(`Unknown message type: ${type}`);
   }
@@ -429,4 +432,11 @@ async function handleBatchGetBackups(payload) {
   const { ids } = payload;
   console.log('[Background] Batch getting backups:', ids.length);
   return await db.getBackups(ids);
+}
+
+async function handleBackupUpdateMapping(payload) {
+  const { conversationId, mapping, currentNode } = payload;
+  console.log('[Background] Updating backup mapping:', conversationId);
+  await db.updateBackupMapping(conversationId, mapping, currentNode);
+  return { updated: conversationId };
 }
