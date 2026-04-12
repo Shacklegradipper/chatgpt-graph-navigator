@@ -2,7 +2,7 @@
  * IndexedDB 操作封装
  */
 
-import { DB_NAME, DB_VERSION, upgradeDatabase } from './schema.js';
+import { DB_NAME, DB_VERSION, OBJECT_STORES, upgradeDatabase } from './schema.js';
 
 /**
  * 数据库管理类
@@ -10,6 +10,11 @@ import { DB_NAME, DB_VERSION, upgradeDatabase } from './schema.js';
 export class Database {
   constructor() {
     this.db = null;
+    this.openPromise = null;
+  }
+
+  _hasOwn(object, key) {
+    return Object.prototype.hasOwnProperty.call(object, key);
   }
 
   /**
@@ -21,12 +26,50 @@ export class Database {
       return this.db;
     }
 
+    if (!this.openPromise) {
+      this.openPromise = this._openWithRecovery().finally(() => {
+        this.openPromise = null;
+      });
+    }
+
+    return this.openPromise;
+  }
+
+  async _openWithRecovery(hasRetried = false) {
+    try {
+      return await this._openDatabase();
+    } catch (error) {
+      if (!hasRetried && this._shouldResetDatabase(error)) {
+        console.warn('[DB] Open failed, resetting database and retrying:', error);
+        await this._resetDatabase();
+        return this._openWithRecovery(true);
+      }
+
+      throw error;
+    }
+  }
+
+  _shouldResetDatabase(error) {
+    const message = error?.message || '';
+    return (
+      message.includes('Missing object stores') ||
+      error?.name === 'VersionError' ||
+      error?.name === 'InvalidStateError' ||
+      error?.name === 'NotFoundError'
+    );
+  }
+
+  _openDatabase() {
     return new Promise((resolve, reject) => {
       console.log(`[DB] Opening database: ${DB_NAME} v${DB_VERSION}`);
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 
       request.onerror = () => {
-        console.error('[DB] Failed to open database:', request.error);
+        console.error('[DB] Failed to open database:', {
+          name: request.error?.name,
+          message: request.error?.message,
+          error: request.error
+        });
         reject(request.error);
       };
 
@@ -36,13 +79,12 @@ export class Database {
         console.log('[DB] Object stores:', Array.from(this.db.objectStoreNames));
 
         // 验证对象存储是否存在
-        const requiredStores = ['conversations', 'nodes', 'edges', 'rounds', 'branches'];
+        const requiredStores = Object.keys(OBJECT_STORES);
         const missingStores = requiredStores.filter(store => !this.db.objectStoreNames.contains(store));
 
         if (missingStores.length > 0) {
           console.error('[DB] Missing object stores:', missingStores);
-          console.error('[DB] Database structure is invalid. Please delete and recreate.');
-          // 关闭数据库
+          console.error('[DB] Database structure is invalid. Attempting recovery.');
           this.db.close();
           this.db = null;
           reject(new Error(`Missing object stores: ${missingStores.join(', ')}`));
@@ -65,6 +107,30 @@ export class Database {
 
       request.onblocked = () => {
         console.warn('[DB] Database upgrade blocked. Close all tabs using this database.');
+      };
+    });
+  }
+
+  async _resetDatabase() {
+    this.close();
+
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(DB_NAME);
+
+      request.onsuccess = () => {
+        console.warn('[DB] Database reset completed');
+        resolve();
+      };
+
+      request.onerror = () => {
+        console.error('[DB] Failed to reset database:', request.error);
+        reject(request.error);
+      };
+
+      request.onblocked = () => {
+        const error = new Error('Database reset blocked');
+        console.error('[DB] Database reset blocked. Close other extension contexts and retry.');
+        reject(error);
       };
     });
   }
@@ -115,21 +181,81 @@ export class Database {
     // 保存更新后的对话
     await this.saveConversation(updated);
 
-    // 如果包含 nodes/rounds/branches/edges 更新，也保存它们
-    if (updates.nodes) {
-      await this.saveNodes(updates.nodes);
-    }
-    if (updates.edges) {
-      await this.saveEdges(updates.edges);
-    }
-    if (updates.rounds) {
-      await this.saveRounds(updates.rounds);
-    }
-    if (updates.branches) {
-      await this.saveBranches(updates.branches);
-    }
+    // 节点/边/轮次/分支是整会话快照，不是 append-only 日志。
+    // 先清掉该会话的旧图数据，再写入最新快照，避免脏节点残留。
+    await this.replaceConversationGraphData(id, updates);
 
     console.log(`[DB] ✓ Conversation updated: ${id}`);
+  }
+
+  async replaceConversationGraphData(conversationId, data = {}) {
+    const replacements = [
+      { key: 'nodes', storeName: 'nodes', saver: items => this.saveNodes(items) },
+      { key: 'edges', storeName: 'edges', saver: items => this.saveEdges(items) },
+      { key: 'rounds', storeName: 'rounds', saver: items => this.saveRounds(items) },
+      { key: 'branches', storeName: 'branches', saver: items => this.saveBranches(items) }
+    ];
+
+    for (const { key, storeName, saver } of replacements) {
+      if (!this._hasOwn(data, key)) {
+        continue;
+      }
+
+      const items = Array.isArray(data[key]) ? data[key] : [];
+      await this.deleteRecordsByConversation(storeName, conversationId);
+
+      if (items.length > 0) {
+        await saver(items);
+      } else {
+        console.log(`[DB] Cleared ${storeName} for conversation: ${conversationId}`);
+      }
+    }
+  }
+
+  async deleteRecordsByConversation(storeName, conversationId) {
+    const db = await this.open();
+
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(storeName, 'readwrite');
+      const store = tx.objectStore(storeName);
+      const index = store.index('conversationId');
+      let deletedCount = 0;
+      let settled = false;
+
+      const finishError = (error) => {
+        if (!settled) {
+          settled = true;
+          reject(error);
+        }
+      };
+
+      tx.oncomplete = () => {
+        if (!settled) {
+          settled = true;
+          if (deletedCount > 0) {
+            console.log(`[DB] Deleted ${deletedCount} ${storeName} record(s) for conversation: ${conversationId}`);
+          }
+          resolve(deletedCount);
+        }
+      };
+
+      tx.onerror = () => finishError(tx.error || new Error(`Failed to delete ${storeName} records`));
+      tx.onabort = () => finishError(tx.error || new Error(`Aborted deleting ${storeName} records`));
+
+      const request = index.openCursor(IDBKeyRange.only(conversationId));
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (!cursor) {
+          return;
+        }
+
+        store.delete(cursor.primaryKey);
+        deletedCount++;
+        cursor.continue();
+      };
+
+      request.onerror = () => finishError(request.error);
+    });
   }
 
   /**
@@ -344,25 +470,12 @@ export class Database {
       branchCount: conversationData.branches?.length || 0
     });
 
-    // 保存节点
-    if (conversationData.nodes && conversationData.nodes.length > 0) {
-      await this.saveNodes(conversationData.nodes);
-    }
-
-    // 保存边
-    if (conversationData.edges && conversationData.edges.length > 0) {
-      await this.saveEdges(conversationData.edges);
-    }
-
-    // 保存轮次
-    if (conversationData.rounds && conversationData.rounds.length > 0) {
-      await this.saveRounds(conversationData.rounds);
-    }
-
-    // 保存分支
-    if (conversationData.branches && conversationData.branches.length > 0) {
-      await this.saveBranches(conversationData.branches);
-    }
+    await this.replaceConversationGraphData(conversationData.id, {
+      nodes: conversationData.nodes,
+      edges: conversationData.edges,
+      rounds: conversationData.rounds,
+      branches: conversationData.branches
+    });
 
     console.log(`[DB] ✓ Full conversation saved: ${conversationData.id}`);
   }
@@ -397,6 +510,13 @@ export class Database {
   async deleteConversation(conversationId) {
     const db = await this.open();
 
+    await this.replaceConversationGraphData(conversationId, {
+      nodes: [],
+      edges: [],
+      rounds: [],
+      branches: []
+    });
+
     // 删除对话
     const tx1 = db.transaction('conversations', 'readwrite');
     await new Promise((resolve, reject) => {
@@ -404,16 +524,6 @@ export class Database {
       request.onsuccess = () => resolve();
       request.onerror = () => reject(request.error);
     });
-
-    // 删除相关节点
-    const nodes = await this.getNodes(conversationId);
-    if (nodes.length > 0) {
-      const tx2 = db.transaction('nodes', 'readwrite');
-      const store = tx2.objectStore('nodes');
-      for (const node of nodes) {
-        store.delete(node.id);
-      }
-    }
 
     console.log(`[DB] Conversation deleted: ${conversationId}`);
   }

@@ -120,7 +120,8 @@ export const URL_PATTERNS = {
 
 // DOM 选择器（注意：ChatGPT UI 可能变化，需要维护多个版本）
 export const DOM_SELECTORS = {
-  ARTICLE: 'article',
+  ARTICLE: 'section[data-turn-id], article',
+  MESSAGE_CONTAINER: 'section[data-turn-id], article',
   MAIN: 'main',
   USER_HEADING: 'h5',
   ASSISTANT_HEADING: 'h6',

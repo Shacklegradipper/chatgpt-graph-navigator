@@ -1,5 +1,9 @@
 import { log } from '../../shared/utils.js';
 
+export const TURN_CONTAINER_SELECTOR = 'section[data-turn-id], article';
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /**
  * 从 id 属性中提取 UUID（支持 image-{uuid} 等格式）
  * @param {Element} node - DOM 节点
@@ -18,40 +22,120 @@ function extractUuidFromIdAttribute(node) {
   return null;
 }
 
+function escapeSelectorValue(value) {
+  if (window.CSS?.escape) {
+    return window.CSS.escape(value);
+  }
+
+  return String(value).replace(/["\\]/g, '\\$&');
+}
+
+function getUuidLikeTurnId(node) {
+  const turnId = node?.getAttribute?.('data-turn-id');
+  return turnId && UUID_REGEX.test(turnId) ? turnId : null;
+}
+
+function getInnerMessageNode(container) {
+  if (!container?.querySelector) return null;
+
+  return (
+    container.querySelector('[data-message-author-role][data-message-id]') ||
+    container.querySelector('[data-message-id]')
+  );
+}
+
+export function isMessageContainer(node) {
+  return !!(node?.matches && node.matches(TURN_CONTAINER_SELECTOR));
+}
+
+export function findMessageContainer(node) {
+  if (!node) return null;
+
+  if (isMessageContainer(node)) {
+    return node;
+  }
+
+  if (node.closest) {
+    return node.closest(TURN_CONTAINER_SELECTOR);
+  }
+
+  return null;
+}
+
+export function getAllMessageContainers(root = document) {
+  if (!root?.querySelectorAll) return [];
+  return Array.from(root.querySelectorAll(TURN_CONTAINER_SELECTOR));
+}
+
+export function isPlaceholderMessageId(messageId) {
+  if (!messageId) return false;
+
+  // ChatGPT streaming placeholders observed in the wild:
+  // - placeholder-request-...
+  // - request-placeholder-...
+  return messageId.includes('placeholder');
+}
+
 /**
  * 从节点中提取 ID
   * @param {Element} node - DOM 节点
   * @returns {string|null}
  */
-export function getUniqueMessageId(node) {
-  // 1. 如果节点本身就是 article，尝试查找内部的 message-id
-  if (node.tagName === 'ARTICLE') {
-    // 1.1 优先查找 data-message-id 属性
-    const innerMessage = node.querySelector('[data-message-id]');
-    if (innerMessage) return innerMessage.getAttribute('data-message-id');
-    if (node.hasAttribute('data-message-id')) return node.getAttribute('data-message-id');
+export function getUniqueMessageId(node, options = {}) {
+  const { allowTurnIdFallback = true } = options;
 
-    // 1.2 查找 id="image-{uuid}" 格式（图片生成消息）
-    const imageElement = node.querySelector('[id^="image-"]');
+  if (!node?.getAttribute) {
+    return null;
+  }
+
+  if (node.hasAttribute('data-message-id')) {
+    return node.getAttribute('data-message-id');
+  }
+
+  const container = findMessageContainer(node);
+  if (container) {
+    const innerMessage = getInnerMessageNode(container);
+    if (innerMessage) {
+      return innerMessage.getAttribute('data-message-id');
+    }
+
+    if (container.hasAttribute('data-message-id')) {
+      return container.getAttribute('data-message-id');
+    }
+
+    const imageElement = container.querySelector?.('[id^="image-"]');
     if (imageElement) {
       const uuid = extractUuidFromIdAttribute(imageElement);
       if (uuid) return uuid;
     }
 
-    log('warn', 'MessageIdHelper', 'Article element missing data-message-id attribute');
+    if (allowTurnIdFallback) {
+      const turnId = getUuidLikeTurnId(container);
+      if (turnId) return turnId;
+    }
+
+    if (allowTurnIdFallback) {
+      log('warn', 'MessageIdHelper', 'Message container missing data-message-id attribute');
+    }
     return null;
   }
 
-  // 2. 如果节点是 article 内部的某个元素（比如 message div）
-  if (node.hasAttribute('data-message-id')) {
-    return node.getAttribute('data-message-id');
-  }
-
-  // 3. 检查节点自身的 id 属性是否为 image-{uuid} 格式
   const uuid = extractUuidFromIdAttribute(node);
   if (uuid) return uuid;
 
   return null;
+}
+
+/**
+ * 提取稳定的消息 ID。
+ * 仅接受真正的 data-message-id / image uuid，不接受 data-turn-id 兜底，
+ * 以避免同一条 assistant 消息先被 turnId、后被 messageId 处理两次。
+ * @param {Element} node - DOM 节点
+ * @returns {string|null}
+ */
+export function getStableMessageId(node) {
+  const messageId = getUniqueMessageId(node, { allowTurnIdFallback: false });
+  return isPlaceholderMessageId(messageId) ? null : messageId;
 }
 
 /**
@@ -61,26 +145,7 @@ export function getUniqueMessageId(node) {
  * @returns {string|null} 消息唯一 ID
  */
 export function resolveMessageId(article) {
-  // 1. 查找内部包含 data-message-id 的元素 (最准确，对应 User/Assistant 内容块)
-  const innerMsg = article.querySelector('[data-message-id]');
-  if (innerMsg) {
-    return innerMsg.getAttribute('data-message-id');
-  }
-
-  // 2. 查找 article 自身的 data-message-id (兼容旧版)
-  if (article.hasAttribute('data-message-id')) {
-    return article.getAttribute('data-message-id');
-  }
-
-  // 3. 查找 id="image-{uuid}" 格式（图片生成消息）
-  const imageElement = article.querySelector('[id^="image-"]');
-  if (imageElement) {
-    const uuid = extractUuidFromIdAttribute(imageElement);
-    if (uuid) return uuid;
-  }
-
-  // 4. 返回空
-  return null;
+  return getUniqueMessageId(article, { allowTurnIdFallback: true });
 }
 
 /**
@@ -92,21 +157,30 @@ export function resolveMessageId(article) {
 export function findArticleByMessageId(messageId) {
   if (!messageId) return null;
 
-  // 1. 尝试查找内部包含 data-message-id 的 article（最常见）
-  let article = document.querySelector(`article:has([data-message-id="${messageId}"])`);
-  if (article) return article;
+  const escapedId = escapeSelectorValue(messageId);
 
-  // 2. 尝试查找 article 自身带有 data-message-id（兼容旧版）
-  article = document.querySelector(`article[data-message-id="${messageId}"]`);
-  if (article) return article;
+  const messageNode = document.querySelector(`[data-message-id="${escapedId}"]`);
+  if (messageNode) {
+    return findMessageContainer(messageNode) || messageNode;
+  }
 
-  // 3. 尝试查找 data-turn-id（兜底）
-  article = document.querySelector(`article[data-turn-id="${messageId}"]`);
-  if (article) return article;
+  let container = document.querySelector(`section[data-turn-id="${escapedId}"], article[data-turn-id="${escapedId}"]`);
+  if (container) return container;
 
-  // 4. 尝试查找 id="image-{uuid}" 格式（图片生成消息）
-  article = document.querySelector(`article:has([id="image-${messageId}"])`);
-  if (article) return article;
+  container = document.querySelector(`section[data-message-id="${escapedId}"], article[data-message-id="${escapedId}"]`);
+  if (container) return container;
+
+  container = document.querySelector(`[id="image-${escapedId}"]`);
+  if (container) {
+    return findMessageContainer(container) || container;
+  }
+
+  const containers = getAllMessageContainers();
+  for (const candidate of containers) {
+    if (resolveMessageId(candidate) === messageId || candidate.getAttribute('data-turn-id') === messageId) {
+      return candidate;
+    }
+  }
 
   return null;
 }
@@ -119,18 +193,24 @@ export function findArticleByMessageId(messageId) {
 export function messageIdExistsInDOM(messageId) {
   if (!messageId) return false;
 
+  const escapedId = escapeSelectorValue(messageId);
+
   // 检查 data-message-id
-  if (document.querySelector(`[data-message-id="${messageId}"]`)) {
+  if (document.querySelector(`[data-message-id="${escapedId}"]`)) {
     return true;
   }
 
   // 检查 data-turn-id
-  if (document.querySelector(`[data-turn-id="${messageId}"]`)) {
+  if (document.querySelector(`[data-turn-id="${escapedId}"]`)) {
     return true;
   }
 
   // 检查 id="image-{uuid}" 格式
-  if (document.querySelector(`[id="image-${messageId}"]`)) {
+  if (document.querySelector(`[id="image-${escapedId}"]`)) {
+    return true;
+  }
+
+  if (findArticleByMessageId(messageId)) {
     return true;
   }
 

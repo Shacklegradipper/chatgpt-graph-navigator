@@ -21,7 +21,8 @@ import { isConversationPage, waitForElement } from './utils/dom-helper.js';
 import { createURLObserver } from './observers/url-observer.js';
 import { createMessageObserver } from './observers/message-observer.js';
 import { conversationState } from './state/conversation-state.js';
-import { navigateToMessage, getCurrentDisplayedPath } from './utils/branch-navigator.js';
+import { navigateToMessage } from './utils/branch-navigator.js';
+import { findArticleByMessageId, getAllMessageContainers, resolveMessageId } from './utils/message-id-helper.js';
 import { initCollapseManager, setupSettingsListener } from './collapse/collapse-manager.js';
 import { toggleFloatingPanel, toggleClickThrough, toggleLock } from './ui/floating-panel.js';
 import { initRestoreBridge, autoConfigRestore, enableRestore, disableRestore, isRestoredConversation } from './backup/restore-bridge.js';
@@ -29,6 +30,7 @@ import { initRestoreBridge, autoConfigRestore, enableRestore, disableRestore, is
 // 全局观察器实例
 let urlObserver = null;
 let messageObserver = null;
+const CONTENT_SCRIPT_GUARD = '__chatgptGraphContentInitialized__';
 
 /**
  * 设置来自 sidepanel 的消息监听
@@ -414,25 +416,25 @@ async function scrollUntilVisible(element) {
  * @returns {HTMLElement|null}
  */
 function findMessageElement(messageId) {
-  //TODO: 排除bug的风险
-  // 1. 通过 data-message-id 属性查找
-  let targetElement = document.querySelector(`[data-message-id="${messageId}"]`);
-
-  // 2. 通过 data-turn-id 属性查找（ChatGPT 新版本可能使用这个）
-  if (!targetElement) { 
-    targetElement = document.querySelector(`[data-turn-id="${messageId}"]`);
+  if (!messageId) {
+    return null;
   }
 
-  // 3. 遍历所有 article 查找
-  if (!targetElement) {
-    const articles = document.querySelectorAll('article[data-turn-id]');
-    for (const article of articles) {
-      const turnId = article.getAttribute('data-turn-id');
-      if (turnId === messageId) {
-        targetElement = article;
-        break;
-      }
-    }
+  const escapedId = window.CSS?.escape ? window.CSS.escape(messageId) : messageId.replace(/["\\]/g, '\\$&');
+
+  let targetElement = document.querySelector(`[data-message-id="${escapedId}"]`);
+  if (targetElement) {
+    return targetElement;
+  }
+
+  const container = findArticleByMessageId(messageId);
+  if (container) {
+    targetElement =
+      container.querySelector(`[data-message-id="${escapedId}"]`) ||
+      container.querySelector('[data-message-author-role][data-message-id]') ||
+      container.querySelector('[data-message-id]') ||
+      container;
+    return targetElement;
   }
 
   // 4. 尝试模糊匹配
@@ -441,12 +443,10 @@ function findMessageElement(messageId) {
   // 只有当 ID 长度足够时才进行模糊搜索，避免匹配到 "1", "user" 等短字符
   if (messageId.length < MIN_SAFE_LENGTH) return null;
 
-  // 扩大搜索范围：获取所有包含任意一种 ID 属性的 article
-  const candidates = document.querySelectorAll('article[data-message-id], article[data-turn-id]');
+  const candidates = getAllMessageContainers();
 
   for (const article of candidates) {
-    // 获取两个属性值
-    const domMessageId = article.getAttribute('data-message-id');
+    const domMessageId = resolveMessageId(article);
     const domTurnId = article.getAttribute('data-turn-id');
 
     // 定义匹配帮助函数：检查 DOM 属性是否“包含”目标 ID，或者目标 ID 是否“包含”DOM 属性
@@ -457,13 +457,19 @@ function findMessageElement(messageId) {
 
     // 优先检查 data-message-id
     if (isMatch(domMessageId)) {
-      targetElement = article;
+      targetElement =
+        article.querySelector('[data-message-author-role][data-message-id]') ||
+        article.querySelector('[data-message-id]') ||
+        article;
       break;
     }
 
     // 其次检查 data-turn-id
     if (isMatch(domTurnId)) {
-      targetElement = article;
+      targetElement =
+        article.querySelector('[data-message-author-role][data-message-id]') ||
+        article.querySelector('[data-message-id]') ||
+        article;
       break;
     }
   }
@@ -950,6 +956,11 @@ function logIncrementalUpdate(messageData, stats) {
 }
 
 // 启动
-main().catch(error => {
-  log('error', 'Content', 'Fatal error:', error);
-});
+if (globalThis[CONTENT_SCRIPT_GUARD]) {
+  log('warn', 'Content', 'Content script already initialized, skipping duplicate bootstrap');
+} else {
+  globalThis[CONTENT_SCRIPT_GUARD] = true;
+  main().catch(error => {
+    log('error', 'Content', 'Fatal error:', error);
+  });
+}

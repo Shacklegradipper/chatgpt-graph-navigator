@@ -4,7 +4,13 @@
  */
 
 import { log } from '../../shared/utils.js';
-import { resolveMessageId, findArticleByMessageId } from '../utils/message-id-helper.js';
+import {
+  resolveMessageId,
+  findArticleByMessageId,
+  findMessageContainer,
+  getAllMessageContainers,
+  isMessageContainer
+} from '../utils/message-id-helper.js';
 
 /**
  * 从 DOM article 元素提取消息信息
@@ -13,23 +19,25 @@ import { resolveMessageId, findArticleByMessageId } from '../utils/message-id-he
  * @returns {Object|null} 提取的消息数据
  */
 export function extractMessageFromDOM(article) {
-  if (!article || article.tagName !== 'ARTICLE') {
+  const container = findMessageContainer(article);
+
+  if (!container) {
     return null;
   }
 
   try {
     // 1. 提取 UUID
-    const id = resolveMessageId(article);
+    const id = resolveMessageId(container);
     
-    // 2. 提取角色 (优先查内部，其次查 article)
-    let role = article.getAttribute('data-turn');
-    const roleDiv = article.querySelector('[data-message-author-role]');
+    // 2. 提取角色 (优先查内部，其次查容器)
+    let role = container.getAttribute('data-turn');
+    const roleDiv = container.querySelector('[data-message-author-role]');
     if (roleDiv) {
       role = roleDiv.getAttribute('data-message-author-role');
     }
 
     // Turn Number 仅作参考
-    const turnNumber = article.getAttribute('data-testid')?.match(/\d+/)?.[0];
+    const turnNumber = container.getAttribute('data-testid')?.match(/\d+/)?.[0];
 
     if (!id || !role) {
       // 只有在连 Turn ID 都没有的情况下才报错
@@ -43,15 +51,15 @@ export function extractMessageFromDOM(article) {
 
     if (role === 'user') {
       // User 消息通常在 .whitespace-pre-wrap 中
-      contentEl = article.querySelector('.whitespace-pre-wrap');
+      contentEl = container.querySelector('.whitespace-pre-wrap');
     } else {
       // Assistant 消息通常在 .markdown 中
-      contentEl = article.querySelector('.markdown');
+      contentEl = container.querySelector('.markdown');
     }
 
     // 兜底：如果特定选择器没找到，找包含 text-message 类的元素
     if (!contentEl) {
-       contentEl = article.querySelector('[data-message-author-role] > div'); 
+      contentEl = container.querySelector('[data-message-author-role] > div');
     }
 
     if (contentEl) {
@@ -59,7 +67,7 @@ export function extractMessageFromDOM(article) {
     } else {
       // 最后的兜底：遍历查找长文本
       // (保持原有逻辑，但作为最后手段)
-      const allDivs = article.querySelectorAll('div');
+      const allDivs = container.querySelectorAll('div');
       let maxLength = 0;
       allDivs.forEach(div => {
         // 排除 script, style 和隐藏元素
@@ -74,11 +82,10 @@ export function extractMessageFromDOM(article) {
 
     // 4. [关键修正] 推断父节点 (使用 UUID)
     let parent = null;
-    let prevElement = article.previousElementSibling;
+    let prevElement = container.previousElementSibling;
 
     while (prevElement) {
-      if (prevElement.tagName === 'ARTICLE') {
-        // 获取前一个 article 的 UUID
+      if (isMessageContainer(prevElement)) {
         const prevId = resolveMessageId(prevElement);
         if (prevId) {
           parent = prevId;
@@ -118,8 +125,7 @@ export function getAllMessagesFromDOM() {
     return [];
   }
 
-  // [修正] 获取所有 article，不设属性限制，防止漏掉只有 message-id 的节点
-  const articles = main.querySelectorAll('article');
+  const articles = getAllMessageContainers(main);
   
   const messages = Array.from(articles)
     .map(extractMessageFromDOM)

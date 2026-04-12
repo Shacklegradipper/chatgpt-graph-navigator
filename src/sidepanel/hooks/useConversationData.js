@@ -12,6 +12,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { MESSAGE_TYPES } from '../../shared/constants';
+import { sendMessageToTabWithFallback } from '../../shared/tab-messaging.js';
 import { buildRounds as buildRoundsFromParsedNodes } from '../../content/parser/branch-extractor.js';
 
 // 与 shared/utils.js 中 extractConversationId 保持一致
@@ -59,25 +60,6 @@ function queryActiveTab() {
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => resolve(tabs || []));
     } catch {
       resolve([]);
-    }
-  });
-}
-
-/**
- * Promise 化 tabs.sendMessage（兼容 callback 形式）
- */
-function sendMessageToTab(tabId, message) {
-  return new Promise((resolve, reject) => {
-    try {
-      chrome.tabs.sendMessage(tabId, message, (resp) => {
-        if (chrome.runtime.lastError) {
-          reject(chrome.runtime.lastError);
-        } else {
-          resolve(resp);
-        }
-      });
-    } catch (err) {
-      reject(err);
     }
   });
 }
@@ -173,7 +155,7 @@ export function useConversationData() {
 
     try {
       console.log('[Hook] Triggering content script to fetch:', conversationId);
-      await sendMessageToTab(tab.id, {
+      await sendMessageToTabWithFallback(tab.id, {
         type: MESSAGE_TYPES.REFRESH_DATA,
         payload: { conversationId }
       });
@@ -278,7 +260,7 @@ export function useConversationData() {
     // 触发 content script 重新抓取（失败也不要阻塞回读 DB）
     if (tab?.id) {
       try {
-        await sendMessageToTab(tab.id, {
+        await sendMessageToTabWithFallback(tab.id, {
           type: MESSAGE_TYPES.REFRESH_DATA,
           payload: { conversationId: convId }
         });

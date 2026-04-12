@@ -3,7 +3,9 @@
  */
 
 export const DB_NAME = 'ChatGPTGraphDB';
-export const DB_VERSION = 5;  // v5: 添加 conversation_backups 表
+// Keep the hotfix branch forward-compatible with the backup feature branch.
+// The browser may already contain a v5 database with the backup store.
+export const DB_VERSION = 5;  // v5: add conversation_backups store
 
 /**
  * 对象存储定义

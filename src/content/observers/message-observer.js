@@ -5,7 +5,12 @@
 
 import { log } from '../../shared/utils.js';
 import { extractMessageFromDOM } from '../extractors/message-extractor.js';
-import { getUniqueMessageId } from '../utils/message-id-helper.js';
+import {
+  getStableMessageId,
+  getAllMessageContainers,
+  findMessageContainer,
+  isMessageContainer
+} from '../utils/message-id-helper.js';
 
 /**
  * 消息观察器
@@ -19,7 +24,7 @@ export class MessageObserver {
     this.processedMessages = new Set(); // 存储 message-id (UUID)，防止重复处理
     this.pendingMessages = new Map();   // 存储 message-id -> timer
 
-    // 等待 message-id 的 article 追踪
+    // 等待 message-id 的消息容器追踪
     // WeakMap<HTMLElement, { observer: MutationObserver, timeoutId: number }>
     this.pendingIdObservers = new WeakMap();
     // 用于 stop/reset 时批量清理的引用集合
@@ -43,16 +48,19 @@ export class MessageObserver {
     this.isRunning = true;
 
     // 1. [核心修复] 初始化当前状态
-    // 不能只找 data-turn-id，必须扫描所有 article 并提取 message-id
-    const existingArticles = document.querySelectorAll('article');
+    // 不能只找旧版 article，必须扫描所有消息容器并提取 message-id
+    const existingArticles = getAllMessageContainers();
 
     let initCount = 0;
     existingArticles.forEach(article => {
-      // 使用和 _handleMutations 一致的提取逻辑
-      const uniqueId = getUniqueMessageId(article);
+      // 只记录稳定消息 ID，避免把 turnId 误当成 assistant 消息 ID。
+      const uniqueId = getStableMessageId(article);
       if (uniqueId) {
         this.processedMessages.add(uniqueId);
         initCount++;
+      } else if (!this.pendingIdObservers.has(article)) {
+        // 对启动时已经存在、但真实 message-id 尚未挂上的容器建立等待。
+        this._watchForMessageId(article);
       }
     });
 
@@ -133,18 +141,29 @@ export class MessageObserver {
    * @private
    */
   _checkForNewMessage(node) {
-    // 场景 A: 插入的节点本身就是 Article (通常发生在页面加载或大块更新)
-    if (node.tagName === 'ARTICLE') {
-      this._processNewArticle(node);
-      return;
+    const containers = new Set();
+
+    if (isMessageContainer(node)) {
+      containers.add(node);
     }
 
-    // 场景 B: 插入的是一个容器，里面包含了 Article (常见于 React 渲染)
-    if (node.querySelectorAll) {
-      // [修正] 不再只找 article[data-turn-id]，而是找所有可能包含消息的容器
-      const articles = node.querySelectorAll('article');
-      articles.forEach(article => this._processNewArticle(article));
+    const directContainer = findMessageContainer(node);
+    if (directContainer) {
+      containers.add(directContainer);
     }
+
+    if (node.querySelectorAll) {
+      getAllMessageContainers(node).forEach(container => containers.add(container));
+
+      node.querySelectorAll('[data-message-author-role][data-message-id]').forEach(messageNode => {
+        const container = findMessageContainer(messageNode);
+        if (container) {
+          containers.add(container);
+        }
+      });
+    }
+
+    containers.forEach(container => this._processNewArticle(container));
   }
 
   /**
@@ -152,8 +171,8 @@ export class MessageObserver {
    * @private
    */
   _processNewArticle(article) {
-    // [修正 1] 获取真正的唯一 ID (Message UUID)
-    const uniqueId = getUniqueMessageId(article);
+    // [修正 1] 只接受稳定消息 ID，不使用 turnId 兜底。
+    const uniqueId = getStableMessageId(article);
 
     // 过滤掉 placeholder ID（临时占位符，不是真正的消息）
     // placeholder-request-* 是 ChatGPT 流式输出开始前的临时 ID
@@ -214,9 +233,8 @@ export class MessageObserver {
     const TIMEOUT_MS = 10000;
 
     const observer = new MutationObserver(() => {
-      const uniqueId = getUniqueMessageId(article);
+      const uniqueId = getStableMessageId(article);
       if (uniqueId && !uniqueId.startsWith('placeholder-')) {
-        // 找到了真正的 ID（非 placeholder），清理资源并重新处理
         this._cleanupPendingIdObserver(article);
         this._processNewArticle(article);
       }
@@ -239,7 +257,7 @@ export class MessageObserver {
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ['data-message-id']
+      attributeFilter: ['data-message-id', 'data-turn-id']
     });
 
     log('debug', 'MessageObserver', 'Started watching for message-id', {
@@ -355,7 +373,7 @@ export class MessageObserver {
    */
   _extractAndNotify(article, uniqueId) {
     // 1. 容错处理：如果调用方没传 ID (虽然不应该发生)，尝试重新提取
-    const id = uniqueId || getUniqueMessageId(article);
+    const id = uniqueId || getStableMessageId(article);
 
     if (!id) {
       log('warn', 'MessageObserver', 'Cannot extract unique ID for notification');
@@ -430,11 +448,11 @@ export class MessageObserver {
         return;
       }
 
-      const articles = document.querySelectorAll('article');
+      const articles = getAllMessageContainers();
       let newCount = 0;
 
       articles.forEach(article => {
-        const uniqueId = getUniqueMessageId(article);
+        const uniqueId = getStableMessageId(article);
 
         // 跳过无 ID、placeholder、已处理的消息
         if (!uniqueId || uniqueId.startsWith('placeholder-') || this.processedMessages.has(uniqueId)) {

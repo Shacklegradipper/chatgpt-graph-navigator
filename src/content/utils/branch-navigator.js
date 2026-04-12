@@ -4,13 +4,18 @@
  */
 
 import { log } from '../../shared/utils.js';
-import { resolveMessageId, findArticleByMessageId, messageIdExistsInDOM } from './message-id-helper.js';
+import {
+  resolveMessageId,
+  findArticleByMessageId,
+  messageIdExistsInDOM,
+  getAllMessageContainers
+} from './message-id-helper.js';
 
 /**
  * 获取当前页面显示的路径 ID 列表
  */
 export function getCurrentDisplayedPath() {
-  const articles = document.querySelectorAll('article');
+  const articles = getAllMessageContainers();
 
   const path = Array.from(articles).map((article) => {
     // 使用统一的 resolveMessageId 函数提取 ID
@@ -536,8 +541,7 @@ export async function navigateToMessage(targetId, nodes) {
     log('info', 'BranchNav', 'Navigation successful!');
     return { success: true, message: 'Navigation successful' };
   } else {
-    log('warn', 'BranchNav', 'Target not in final path, but navigation completed');
-    // 可能目标是较深层级的消息，继续返回成功让调用者再次检查
-    return { success: true, message: 'Navigation completed' };
+    log('warn', 'BranchNav', 'Target not in final path after navigation');
+    return { success: false, message: 'Navigation completed but target is still not displayed' };
   }
 }

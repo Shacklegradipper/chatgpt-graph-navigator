@@ -3,6 +3,7 @@
  */
 
 import { MESSAGE_TYPES } from '../../shared/constants.js';
+import { sendMessageToTabWithFallback } from '../../shared/tab-messaging.js';
 import { db } from '../database/db.js';
 import { getTokenStatus, clearToken } from '../auth/token-capture.js';
 import { startBackup, pauseBackup, resumeBackup, stopBackup, getBackupStatus } from '../backup/backup-engine.js';
@@ -337,32 +338,12 @@ async function handleScrollToMessage(payload) {
       throw new Error('Active tab is not a ChatGPT page');
     }
 
-    // 尝试转发消息到 content script
-    try {
-      const response = await chrome.tabs.sendMessage(tab.id, {
-        type: MESSAGE_TYPES.SCROLL_TO_MESSAGE,
-        payload: { messageId }
-      });
-      return response;
-    } catch (sendError) {
-      // Content script 可能未加载，尝试注入
-      console.log('[Background] Content script not responding, injecting...');
-
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['dist/content.js']
-      });
-
-      // 等待 content script 初始化
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // 重试发送消息
-      const response = await chrome.tabs.sendMessage(tab.id, {
-        type: MESSAGE_TYPES.SCROLL_TO_MESSAGE,
-        payload: { messageId }
-      });
-      return response;
-    }
+    return await sendMessageToTabWithFallback(tab.id, {
+      type: MESSAGE_TYPES.SCROLL_TO_MESSAGE,
+      payload: { messageId }
+    }, {
+      retryDelayMs: 500
+    });
   } catch (error) {
     console.error('[Background] Failed to forward SCROLL_TO_MESSAGE:', error);
     throw error;
