@@ -6,7 +6,14 @@ import { MESSAGE_TYPES } from '../../shared/constants.js';
 import { sendMessageToTabWithFallback } from '../../shared/tab-messaging.js';
 import { db } from '../database/db.js';
 import { getTokenStatus, clearToken } from '../auth/token-capture.js';
-import { startBackup, pauseBackup, resumeBackup, stopBackup, getBackupStatus } from '../backup/backup-engine.js';
+import {
+  startBackup,
+  pauseBackup,
+  resumeBackup,
+  stopBackup,
+  getBackupStatus,
+  getRemoteConversationList
+} from '../backup/backup-engine.js';
 
 /**
  * 设置消息监听器
@@ -92,7 +99,7 @@ async function handleMessage(message, sender) {
       return await handleBatchGetBackups(payload);
 
     case MESSAGE_TYPES.BACKUP_START:
-      return startBackup();
+      return startBackup(payload);
 
     case MESSAGE_TYPES.BACKUP_PAUSE:
       return pauseBackup();
@@ -105,6 +112,9 @@ async function handleMessage(message, sender) {
 
     case MESSAGE_TYPES.BACKUP_STATUS:
       return getBackupStatus();
+
+    case MESSAGE_TYPES.BACKUP_REMOTE_CONVERSATIONS:
+      return await handleGetRemoteBackupConversations();
 
     case MESSAGE_TYPES.BACKUP_UPDATE_MAPPING:
       return await handleBackupUpdateMapping(payload);
@@ -413,6 +423,11 @@ async function handleBatchGetBackups(payload) {
   const { ids } = payload;
   console.log('[Background] Batch getting backups:', ids.length);
   return await db.getBackups(ids);
+}
+
+async function handleGetRemoteBackupConversations() {
+  console.log('[Background] Getting remote conversations for custom backup');
+  return await getRemoteConversationList();
 }
 
 async function handleBackupUpdateMapping(payload) {

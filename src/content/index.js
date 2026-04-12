@@ -26,6 +26,7 @@ import { findArticleByMessageId, getAllMessageContainers, resolveMessageId } fro
 import { initCollapseManager, setupSettingsListener } from './collapse/collapse-manager.js';
 import { toggleFloatingPanel, toggleClickThrough, toggleLock } from './ui/floating-panel.js';
 import { initRestoreBridge, autoConfigRestore, enableRestore, disableRestore, isRestoredConversation } from './backup/restore-bridge.js';
+import { initBackupMenuInjector } from './backup/backup-menu-injector.js';
 
 // 全局观察器实例
 let urlObserver = null;
@@ -523,6 +524,7 @@ async function main() {
 
   // 初始化 restore bridge（桥接 main-world.js 和 background）
   initRestoreBridge();
+  initBackupMenuInjector();
   // 根据存储状态自动启用/禁用恢复模式
   autoConfigRestore();
 

@@ -1,7 +1,7 @@
 /**
  * Background Backup Engine
- * 在 service worker 中运行，独立于 popup/content script 生命周期
- * 支持并发备份、暂停/继续/停止
+ * Runs inside the service worker and supports both batch backup and
+ * explicit selection backup from extension pages / ChatGPT menus.
  */
 
 import { db } from '../database/db.js';
@@ -9,29 +9,36 @@ import { db } from '../database/db.js';
 const API_BASE = 'https://chatgpt.com/backend-api';
 const PAGE_LIMIT = 100;
 
-// Concurrency settings
 const INITIAL_CONCURRENCY = 8;
 const MIN_CONCURRENCY = 2;
-const INITIAL_DELAY = 200;       // ms between launching each concurrent request
-const BACKOFF_DELAY = 5000;      // ms to wait after 429
+const INITIAL_DELAY = 200;
 const MAX_RETRIES = 3;
 
-// ==================== Backup State ====================
-
-const BackupStatus = { IDLE: 'idle', RUNNING: 'running', PAUSED: 'paused' };
+const BackupStatus = {
+  IDLE: 'idle',
+  RUNNING: 'running',
+  PAUSED: 'paused'
+};
 
 const state = {
   status: BackupStatus.IDLE,
-  total: 0, completed: 0, success: 0, skipped: 0, failed: 0,
+  total: 0,
+  completed: 0,
+  success: 0,
+  skipped: 0,
+  failed: 0,
   currentTitle: '',
   concurrency: INITIAL_CONCURRENCY,
-  queue: [], workspaceMap: {}, token: null, accountId: null,
-  _pauseResolve: null,
+  queue: [],
+  workspaceMap: {},
+  token: null,
+  accountId: null,
+  _pauseResolve: null
 };
 
-// ==================== Helpers ====================
-
-function delay(ms) { return new Promise(r => setTimeout(r, ms)); }
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 async function getToken() {
   const result = await chrome.storage.local.get(['accessToken']);
@@ -42,210 +49,368 @@ async function getAccountId() {
   try {
     const cookie = await chrome.cookies.get({ url: 'https://chatgpt.com', name: '_account' });
     return cookie?.value || null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 async function apiFetch(url, token, accountId) {
-  const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
-  if (accountId) headers['chatgpt-account-id'] = accountId;
-  const resp = await fetch(url, { headers });
-  if (resp.status === 429) {
-    const err = new Error('Rate limited');
-    err.status = 429;
-    err.retryAfter = parseInt(resp.headers.get('retry-after') || '5', 10);
-    throw err;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  };
+
+  if (accountId) {
+    headers['chatgpt-account-id'] = accountId;
   }
-  if (!resp.ok) throw new Error(`API ${resp.status}: ${url}`);
-  return resp.json();
+
+  const response = await fetch(url, { headers });
+  if (response.status === 429) {
+    const error = new Error('Rate limited');
+    error.status = 429;
+    error.retryAfter = parseInt(response.headers.get('retry-after') || '5', 10);
+    throw error;
+  }
+
+  if (!response.ok) {
+    throw new Error(`API ${response.status}: ${url}`);
+  }
+
+  return response.json();
 }
 
 async function apiFetchWithRetry(url, token, accountId, retries = MAX_RETRIES) {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       return await apiFetch(url, token, accountId);
-    } catch (err) {
-      if (err.status === 429 && attempt < retries) {
-        const wait = (err.retryAfter || 5) * 1000;
-        console.warn(`[BackupEngine] 429 on attempt ${attempt}, waiting ${wait}ms`);
-        // Reduce concurrency on 429
+    } catch (error) {
+      if (error.status === 429 && attempt < retries) {
+        const wait = (error.retryAfter || 5) * 1000;
         state.concurrency = Math.max(MIN_CONCURRENCY, Math.floor(state.concurrency / 2));
+        console.warn(`[BackupEngine] 429 on attempt ${attempt}, waiting ${wait}ms`);
         console.log(`[BackupEngine] Concurrency reduced to ${state.concurrency}`);
         await delay(wait);
         continue;
       }
-      throw err;
+
+      throw error;
     }
   }
+
+  throw new Error('API request failed after retries');
 }
 
 function broadcastProgress() {
   const payload = {
-    status: state.status, total: state.total, completed: state.completed,
-    success: state.success, skipped: state.skipped, failed: state.failed,
-    currentTitle: state.currentTitle, concurrency: state.concurrency
+    status: state.status,
+    total: state.total,
+    completed: state.completed,
+    success: state.success,
+    skipped: state.skipped,
+    failed: state.failed,
+    currentTitle: state.currentTitle,
+    concurrency: state.concurrency
   };
-  try { chrome.runtime.sendMessage({ type: 'BACKUP_PROGRESS', payload }).catch(() => {}); }
-  catch { /* no listeners */ }
+
+  try {
+    chrome.runtime.sendMessage({ type: 'BACKUP_PROGRESS', payload }).catch(() => {});
+  } catch {
+    // no listeners
+  }
 }
 
-// ==================== API Calls ====================
+function getWorkspaceName(workspaceId, workspaceMap) {
+  if (!workspaceId) {
+    return 'Personal';
+  }
+
+  return workspaceMap[workspaceId] || 'Team';
+}
+
+function normalizeTimestamp(value) {
+  if (!value) {
+    return 0;
+  }
+
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 async function fetchAccountsInfo(token, accountId) {
   const workspaceMap = {};
+
   try {
     const data = await apiFetch(`${API_BASE}/accounts/check/v4-2023-04-27`, token, accountId);
     if (data?.accounts) {
       for (const [id, info] of Object.entries(data.accounts)) {
         if (id === 'default') continue;
-        const acct = info?.account;
-        workspaceMap[id] = acct?.name || (acct?.structure === 'personal' ? 'Personal' : id);
+        const account = info?.account;
+        workspaceMap[id] = account?.name || (account?.structure === 'personal' ? 'Personal' : id);
       }
     }
-  } catch (err) {
-    console.warn('[BackupEngine] Failed to fetch accounts info:', err);
+  } catch (error) {
+    console.warn('[BackupEngine] Failed to fetch accounts info:', error);
   }
+
   return workspaceMap;
 }
 
-async function fetchAllConversations(token, accountId) {
+async function fetchAllConversations(token, accountId, { emitProgress = true } = {}) {
   const allMap = new Map();
 
-  // Phase 1: initial request — ChatGPT API returns far more than `limit` items
-  state.currentTitle = 'Fetching conversation list...';
-  broadcastProgress();
+  if (emitProgress) {
+    state.currentTitle = 'Fetching conversation list...';
+    broadcastProgress();
+  }
 
   const data = await apiFetchWithRetry(
     `${API_BASE}/conversations?offset=0&limit=${PAGE_LIMIT}&order=updated`,
-    token, accountId
+    token,
+    accountId
   );
 
   if (data.items) {
-    for (const item of data.items) allMap.set(item.id, item);
+    for (const item of data.items) {
+      allMap.set(item.id, item);
+    }
   }
 
-  state.currentTitle = `Fetching list... (${allMap.size})`;
-  broadcastProgress();
+  if (emitProgress) {
+    state.currentTitle = `Fetching list... (${allMap.size})`;
+    broadcastProgress();
+  }
 
-  if (state.status === BackupStatus.IDLE) return [...allMap.values()];
+  if (emitProgress && state.status === BackupStatus.IDLE) {
+    return [...allMap.values()];
+  }
 
-  // Phase 2: parallel补漏 — fire a few requests at spread-out offsets to catch stragglers
   const baseCount = allMap.size;
   if (baseCount > 0) {
     const step = Math.max(1000, Math.floor(baseCount * 0.8));
     const offsets = [step, step * 2];
 
-    const results = await Promise.all(offsets.map(async (offset) => {
-      try {
-        const d = await apiFetchWithRetry(
-          `${API_BASE}/conversations?offset=${offset}&limit=${PAGE_LIMIT}&order=updated`,
-          token, accountId
-        );
-        return d.items || [];
-      } catch (err) {
-        console.warn(`[BackupEngine] Supplementary fetch at offset=${offset} failed:`, err.message);
-        return [];
-      }
-    }));
+    const results = await Promise.all(
+      offsets.map(async offset => {
+        try {
+          const extra = await apiFetchWithRetry(
+            `${API_BASE}/conversations?offset=${offset}&limit=${PAGE_LIMIT}&order=updated`,
+            token,
+            accountId
+          );
+          return extra.items || [];
+        } catch (error) {
+          console.warn(
+            `[BackupEngine] Supplementary fetch at offset=${offset} failed:`,
+            error.message
+          );
+          return [];
+        }
+      })
+    );
 
     for (const items of results) {
-      for (const item of items) allMap.set(item.id, item);
+      for (const item of items) {
+        allMap.set(item.id, item);
+      }
     }
+  }
+
+  if (emitProgress) {
+    state.currentTitle = `Fetched ${allMap.size} conversations`;
+    broadcastProgress();
   }
 
   console.log(`[BackupEngine] Fetched ${allMap.size} unique conversations (base=${baseCount})`);
-  state.currentTitle = `Fetched ${allMap.size} conversations`;
-  broadcastProgress();
-
   return [...allMap.values()];
 }
 
-// ==================== Concurrent Backup Engine ====================
+function buildRemoteConversationMeta(conversation, workspaceMap, existingMetaMap) {
+  const existingMeta = existingMetaMap.get(conversation.id);
+  const workspaceName = getWorkspaceName(conversation.workspace_id, workspaceMap);
 
-async function waitIfPaused() {
-  while (state.status === BackupStatus.PAUSED) {
-    await new Promise(resolve => { state._pauseResolve = resolve; });
-    state._pauseResolve = null;
-  }
+  return {
+    conversation_id: conversation.id,
+    id: conversation.id,
+    title: conversation.title || '',
+    create_time: normalizeTimestamp(conversation.create_time),
+    update_time: normalizeTimestamp(conversation.update_time),
+    workspace_id: conversation.workspace_id || null,
+    workspace_name: workspaceName,
+    content_preview:
+      existingMeta?.content_preview ||
+      conversation.snippet ||
+      conversation.summary ||
+      conversation.preview ||
+      '',
+    message_count: existingMeta?.message_count ?? null,
+    backup_time: existingMeta?.backup_time || 0,
+    already_backed_up: Boolean(existingMeta)
+  };
 }
 
-async function backupOne(conv) {
-  const { token, accountId, workspaceMap } = state;
-  const fullData = await apiFetchWithRetry(`${API_BASE}/conversation/${conv.id}`, token, accountId);
+function uniqConversationIds(ids = []) {
+  const seen = new Set();
+  const result = [];
 
-  if (conv.workspace_id) {
-    fullData.workspace_id = conv.workspace_id;
-    if (workspaceMap[conv.workspace_id]) {
-      fullData._workspace_name = workspaceMap[conv.workspace_id];
+  for (const id of ids) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    result.push(id);
+  }
+
+  return result;
+}
+
+function selectConversationsByIds(conversations, ids) {
+  const byId = new Map(conversations.map(conversation => [conversation.id, conversation]));
+  const selected = [];
+  const missing = [];
+
+  for (const id of uniqConversationIds(ids)) {
+    const conversation = byId.get(id);
+    if (conversation) {
+      selected.push(conversation);
+    } else {
+      missing.push(id);
     }
+  }
+
+  return { selected, missing };
+}
+
+async function backupOne(conversation) {
+  const { token, accountId, workspaceMap } = state;
+  const fullData = await apiFetchWithRetry(
+    `${API_BASE}/conversation/${conversation.id}`,
+    token,
+    accountId
+  );
+
+  if (conversation.workspace_id) {
+    fullData.workspace_id = conversation.workspace_id;
+    fullData._workspace_name = getWorkspaceName(conversation.workspace_id, workspaceMap);
   }
 
   await db.saveBackup(fullData);
 }
 
+async function waitIfPaused() {
+  while (state.status === BackupStatus.PAUSED) {
+    await new Promise(resolve => {
+      state._pauseResolve = resolve;
+    });
+    state._pauseResolve = null;
+  }
+}
+
 async function runBackupLoop() {
   const { queue } = state;
-  let idx = 0;
+  let index = 0;
 
-  while (idx < queue.length) {
+  while (index < queue.length) {
     if (state.status === BackupStatus.IDLE) break;
+
     await waitIfPaused();
     if (state.status === BackupStatus.IDLE) break;
 
-    // Take a batch of size = current concurrency
-    const batchSize = Math.min(state.concurrency, queue.length - idx);
-    const batch = queue.slice(idx, idx + batchSize);
+    const batchSize = Math.min(state.concurrency, queue.length - index);
+    const batch = queue.slice(index, index + batchSize);
 
     state.currentTitle = `${batch[0]?.title || 'Untitled'} (+${batchSize - 1})`;
     broadcastProgress();
 
-    // Launch batch with staggered start
-    const promises = batch.map((conv, i) => {
+    const promises = batch.map((conversation, offset) => {
       return (async () => {
-        if (i > 0) await delay(INITIAL_DELAY * i);
+        if (offset > 0) {
+          await delay(INITIAL_DELAY * offset);
+        }
+
         if (state.status === BackupStatus.IDLE) return;
 
         try {
-          await backupOne(conv);
+          await backupOne(conversation);
           state.success++;
-        } catch (err) {
-          console.error(`[BackupEngine] Failed: ${conv.id}`, err.message);
+        } catch (error) {
+          console.error(`[BackupEngine] Failed: ${conversation.id}`, error.message);
           state.failed++;
         }
 
         state.completed++;
-        state.currentTitle = `${conv.title || 'Untitled'} (${state.completed}/${state.total})`;
+        state.currentTitle = `${conversation.title || 'Untitled'} (${state.completed}/${state.total})`;
         broadcastProgress();
       })();
     });
 
     await Promise.all(promises);
-    idx += batchSize;
+    index += batchSize;
   }
 
   state.status = BackupStatus.IDLE;
   state.currentTitle = 'Done';
   broadcastProgress();
-  console.log(`[BackupEngine] Finished. success=${state.success} skipped=${state.skipped} failed=${state.failed}`);
+  console.log(
+    `[BackupEngine] Finished. success=${state.success} skipped=${state.skipped} failed=${state.failed}`
+  );
 }
 
-// ==================== Public API ====================
+function resetState() {
+  Object.assign(state, {
+    status: BackupStatus.RUNNING,
+    total: 0,
+    completed: 0,
+    success: 0,
+    skipped: 0,
+    failed: 0,
+    currentTitle: 'Initializing...',
+    concurrency: INITIAL_CONCURRENCY,
+    queue: [],
+    workspaceMap: {},
+    token: null,
+    accountId: null
+  });
+}
 
-export async function startBackup() {
+export async function getRemoteConversationList() {
+  const token = await getToken();
+  if (!token) {
+    throw new Error('No token available.');
+  }
+
+  const accountId = await getAccountId();
+  const workspaceMap = await fetchAccountsInfo(token, accountId);
+  const [conversations, existingMetas] = await Promise.all([
+    fetchAllConversations(token, accountId, { emitProgress: false }),
+    db.getAllBackupsMeta()
+  ]);
+
+  const existingMetaMap = new Map(
+    (existingMetas || []).map(meta => [meta.conversation_id, meta])
+  );
+
+  return conversations
+    .map(conversation => buildRemoteConversationMeta(conversation, workspaceMap, existingMetaMap))
+    .sort((a, b) => (b.update_time || 0) - (a.update_time || 0));
+}
+
+export async function startBackup(options = {}) {
   if (state.status !== BackupStatus.IDLE) {
     return { error: 'Backup already in progress' };
   }
 
-  Object.assign(state, {
-    status: BackupStatus.RUNNING,
-    total: 0, completed: 0, success: 0, skipped: 0, failed: 0,
-    currentTitle: 'Initializing...', queue: [],
-    concurrency: INITIAL_CONCURRENCY
-  });
+  resetState();
   broadcastProgress();
 
   try {
     state.token = await getToken();
-    if (!state.token) { state.status = BackupStatus.IDLE; return { error: 'No token available.' }; }
+    if (!state.token) {
+      state.status = BackupStatus.IDLE;
+      broadcastProgress();
+      return { error: 'No token available.' };
+    }
 
     state.accountId = await getAccountId();
 
@@ -257,27 +422,67 @@ export async function startBackup() {
     broadcastProgress();
     const conversations = await fetchAllConversations(state.token, state.accountId);
 
+    const requestedIds = uniqConversationIds(options?.conversationIds || []);
+
+    if (requestedIds.length > 0) {
+      const { selected, missing } = selectConversationsByIds(conversations, requestedIds);
+      if (selected.length === 0) {
+        state.status = BackupStatus.IDLE;
+        state.currentTitle = '';
+        broadcastProgress();
+        return { error: 'Selected conversations were not found.' };
+      }
+
+      state.queue = selected;
+      state.total = selected.length;
+      state.skipped = 0;
+      state.currentTitle = `Selected ${selected.length} conversation(s)`;
+      broadcastProgress();
+
+      runBackupLoop().catch(error => {
+        console.error('[BackupEngine] Loop error:', error);
+        state.status = BackupStatus.IDLE;
+        state.currentTitle = `Error: ${error.message}`;
+        broadcastProgress();
+      });
+
+      return {
+        started: true,
+        total: state.total,
+        skipped: 0,
+        missing
+      };
+    }
+
     const existingIds = await db.getAllBackupIds();
-    const toBackup = conversations.filter(c => !existingIds.has(c.id));
+    const toBackup = conversations.filter(conversation => !existingIds.has(conversation.id));
+
     state.skipped = conversations.length - toBackup.length;
     state.queue = toBackup;
     state.total = toBackup.length;
     broadcastProgress();
 
-    console.log(`[BackupEngine] Starting: ${toBackup.length} to backup, ${state.skipped} skipped, concurrency=${state.concurrency}`);
+    console.log(
+      `[BackupEngine] Starting: ${toBackup.length} to backup, ${state.skipped} skipped, concurrency=${state.concurrency}`
+    );
 
-    runBackupLoop().catch(err => {
-      console.error('[BackupEngine] Loop error:', err);
+    runBackupLoop().catch(error => {
+      console.error('[BackupEngine] Loop error:', error);
       state.status = BackupStatus.IDLE;
-      state.currentTitle = `Error: ${err.message}`;
+      state.currentTitle = `Error: ${error.message}`;
       broadcastProgress();
     });
 
-    return { started: true, total: state.total, skipped: state.skipped };
-  } catch (err) {
+    return {
+      started: true,
+      total: state.total,
+      skipped: state.skipped
+    };
+  } catch (error) {
     state.status = BackupStatus.IDLE;
+    state.currentTitle = '';
     broadcastProgress();
-    return { error: err.message };
+    return { error: error.message };
   }
 }
 
@@ -287,16 +492,20 @@ export function pauseBackup() {
     broadcastProgress();
     return { paused: true };
   }
+
   return { error: 'Not running' };
 }
 
 export function resumeBackup() {
   if (state.status === BackupStatus.PAUSED) {
     state.status = BackupStatus.RUNNING;
-    if (state._pauseResolve) state._pauseResolve();
+    if (state._pauseResolve) {
+      state._pauseResolve();
+    }
     broadcastProgress();
     return { resumed: true };
   }
+
   return { error: 'Not paused' };
 }
 
@@ -304,17 +513,30 @@ export function stopBackup() {
   if (state.status !== BackupStatus.IDLE) {
     const wasPaused = state.status === BackupStatus.PAUSED;
     state.status = BackupStatus.IDLE;
-    if (wasPaused && state._pauseResolve) state._pauseResolve();
+    if (wasPaused && state._pauseResolve) {
+      state._pauseResolve();
+    }
     broadcastProgress();
-    return { stopped: true, success: state.success, skipped: state.skipped, failed: state.failed };
+    return {
+      stopped: true,
+      success: state.success,
+      skipped: state.skipped,
+      failed: state.failed
+    };
   }
+
   return { error: 'Not running' };
 }
 
 export function getBackupStatus() {
   return {
-    status: state.status, total: state.total, completed: state.completed,
-    success: state.success, skipped: state.skipped, failed: state.failed,
-    currentTitle: state.currentTitle, concurrency: state.concurrency
+    status: state.status,
+    total: state.total,
+    completed: state.completed,
+    success: state.success,
+    skipped: state.skipped,
+    failed: state.failed,
+    currentTitle: state.currentTitle,
+    concurrency: state.concurrency
   };
 }

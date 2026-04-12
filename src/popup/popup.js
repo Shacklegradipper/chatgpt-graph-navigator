@@ -456,6 +456,12 @@ function createBackupSettingsHTML() {
           </button>
         </div>
 
+        <div class="backup-actions">
+          <button class="secondary" id="custom-backup-btn" style="flex: 1;">
+            Custom Backup
+          </button>
+        </div>
+
         <div class="toggle-switch">
           <label for="restore-mode-toggle">Restore Mode</label>
           <label class="switch">
@@ -477,6 +483,7 @@ function bindBackupSettingsEvents() {
   const stopBtn = document.getElementById('backup-stop-btn');
   const restoreToggle = document.getElementById('restore-mode-toggle');
   const manageBtn = document.getElementById('manage-backups-btn');
+  const customBtn = document.getElementById('custom-backup-btn');
 
   const progressEl = document.getElementById('backup-progress');
   const fillEl = document.getElementById('backup-progress-fill');
@@ -549,6 +556,13 @@ function bindBackupSettingsEvents() {
   if (manageBtn) {
     manageBtn.addEventListener('click', () => {
       chrome.tabs.create({ url: chrome.runtime.getURL('src/backup-manager/index.html') });
+    });
+  }
+
+  if (customBtn) {
+    customBtn.addEventListener('click', () => {
+      const url = `${chrome.runtime.getURL('src/backup-manager/index.html')}?mode=custom`;
+      chrome.tabs.create({ url });
     });
   }
 

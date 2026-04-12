@@ -186,6 +186,40 @@
       border-color: var(--color-accent);
     }
 
+    .filter-number {
+      width: 120px;
+      padding: 10px 14px;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      font-family: var(--font-body);
+      font-size: 14px;
+      background: var(--color-surface);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .filter-number:focus {
+      border-color: var(--color-accent);
+    }
+
+    .toolbar-btn {
+      padding: 10px 14px;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      background: var(--color-surface);
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--color-text);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .toolbar-btn:hover {
+      background: var(--color-bg);
+      border-color: var(--color-text-tertiary);
+    }
+
     /* Action Bar */
     .action-bar {
       display: none;
@@ -405,6 +439,31 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .col-status {
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 9px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+    }
+
+    .status-pill.backed-up {
+      background: #dafbe1;
+      color: #1a7f37;
+    }
+
+    .status-pill.not-backed-up {
+      background: #ffebe9;
+      color: #cf222e;
+    }
+
     .workspace-badge {
       display: inline-block;
       padding: 2px 8px;
@@ -513,19 +572,29 @@
         <div class="brand">
           <div class="brand-icon"><img src="/assets/icon128.png" alt="ChatGPT Graph"></div>
         </div>
-        <h1 class="header-title">Backup Manager</h1>
+        <h1 class="header-title" id="page-title">Backup Manager</h1>
       </div>
       <div class="header-stats" id="header-stats"></div>
     </header>
 
     <div class="toolbar">
       <input type="text" class="search-input" id="search-input" placeholder="Search by title or content...">
+      <select class="filter-select" id="date-filter-mode">
+        <option value="any">Any Time</option>
+        <option value="after">Updated After</option>
+        <option value="before">Updated Before</option>
+        <option value="between">Updated Between</option>
+      </select>
       <input type="date" class="filter-date" id="date-from" title="From date">
       <input type="date" class="filter-date" id="date-to" title="To date">
+      <input type="number" class="filter-number" id="latest-count" min="1" step="1" placeholder="Latest N">
+      <button class="toolbar-btn" id="select-visible-btn">Select Visible</button>
+      <button class="toolbar-btn" id="clear-selection-btn">Clear Selection</button>
     </div>
 
     <div class="action-bar" id="action-bar">
       <span class="count" id="selected-count">0 selected</span>
+      <button class="action-btn" id="backup-selected-btn">Backup Selected</button>
       <button class="action-btn" id="export-json-btn">Export JSON</button>
       <button class="action-btn" id="export-md-btn">Export MD</button>
       <button class="action-btn" id="export-both-btn">Export Both</button>
