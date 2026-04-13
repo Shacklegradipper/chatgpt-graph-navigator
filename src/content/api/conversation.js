@@ -3,7 +3,7 @@
  */
 
 import { API_ENDPOINTS } from '../../shared/constants.js';
-import { log, retry } from '../../shared/utils.js';
+import { log, retry, delay } from '../../shared/utils.js';
 import { buildAuthHeaders, clearAuthCache } from '../auth/token-manager.js';
 
 /**
