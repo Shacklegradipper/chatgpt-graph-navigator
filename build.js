@@ -103,6 +103,11 @@ const builds = [
     ...commonOptions,
     entryPoints: ['src/backup-manager/backup-manager.js'],
     outfile: 'dist/backup-manager.js'
+  },
+  {
+    ...commonOptions,
+    entryPoints: ['src/export-renderer/index.js'],
+    outfile: 'dist/export-renderer.js'
   }
 ];
 

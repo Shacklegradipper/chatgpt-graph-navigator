@@ -7,6 +7,7 @@ import { setupMessageListener } from './messaging/message-handler.js';
 import { db } from './database/db.js';
 import { cache } from './cache/cache-manager.js';
 import { initTokenCapture, getTokenStatus } from './auth/token-capture.js';
+import { setupPngCaptureBridge } from './export/png-capture.js';
 
 let listenersRegistered = false;
 let sidePanelConfigured = false;
@@ -16,6 +17,7 @@ let initializePromise = null;
 function registerRuntimeListeners() {
   if (!listenersRegistered) {
     setupMessageListener();
+    setupPngCaptureBridge();
     listenersRegistered = true;
     console.log('[Background] Message listener registered');
   }

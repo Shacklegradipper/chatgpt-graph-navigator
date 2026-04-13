@@ -27,6 +27,7 @@
     "cookies"
   ],
   "host_permissions": [
+    "<all_urls>",
     "https://chatgpt.com/*",
     "https://chat.openai.com/*"
   ],

@@ -14,6 +14,7 @@ import {
   getBackupStatus,
   getRemoteConversationList
 } from '../backup/backup-engine.js';
+import { captureHtmlAssetsAsPngDataUrls } from '../export/png-capture.js';
 
 /**
  * 设置消息监听器
@@ -118,6 +119,9 @@ async function handleMessage(message, sender) {
 
     case MESSAGE_TYPES.BACKUP_UPDATE_MAPPING:
       return await handleBackupUpdateMapping(payload);
+
+    case MESSAGE_TYPES.CAPTURE_HTML_ASSETS_AS_PNG:
+      return await handleCaptureHtmlAssetsAsPng(payload);
 
     default:
       throw new Error(`Unknown message type: ${type}`);
@@ -435,4 +439,10 @@ async function handleBackupUpdateMapping(payload) {
   console.log('[Background] Updating backup mapping:', conversationId);
   await db.updateBackupMapping(conversationId, mapping, currentNode);
   return { updated: conversationId };
+}
+
+async function handleCaptureHtmlAssetsAsPng(payload) {
+  const assets = Array.isArray(payload?.assets) ? payload.assets : [];
+  console.log('[Background] Capturing HTML assets as PNG:', assets.length);
+  return await captureHtmlAssetsAsPngDataUrls(assets);
 }
