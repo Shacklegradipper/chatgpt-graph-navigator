@@ -474,6 +474,377 @@
     "message": "Errors"
   },
 
+  "popupBackupSectionTitle": {
+    "message": "Backup & Restore"
+  },
+  "popupBackupStatsLabel": {
+    "message": "Backed up conversations"
+  },
+  "popupBackupPreparing": {
+    "message": "Preparing..."
+  },
+  "popupBatchBackup": {
+    "message": "Batch Backup"
+  },
+  "popupBackupPause": {
+    "message": "Pause"
+  },
+  "popupBackupResume": {
+    "message": "Resume"
+  },
+  "popupBackupStop": {
+    "message": "Stop"
+  },
+  "popupManageBackups": {
+    "message": "Manage Backups"
+  },
+  "popupCustomBackup": {
+    "message": "Custom Backup"
+  },
+  "popupRestoreMode": {
+    "message": "Restore Mode"
+  },
+  "popupBackupStarting": {
+    "message": "Starting..."
+  },
+  "popupBackupPausedProgress": {
+    "message": "Paused: $COMPLETED$/$TOTAL$",
+    "placeholders": {
+      "completed": {
+        "content": "$1",
+        "example": "3"
+      },
+      "total": {
+        "content": "$2",
+        "example": "10"
+      }
+    }
+  },
+  "popupBackupDoneProgress": {
+    "message": "Done! $SUCCESS$ saved, $SKIPPED$ skipped, $FAILED$ failed",
+    "placeholders": {
+      "success": {
+        "content": "$1",
+        "example": "8"
+      },
+      "skipped": {
+        "content": "$2",
+        "example": "1"
+      },
+      "failed": {
+        "content": "$3",
+        "example": "1"
+      }
+    }
+  },
+  "popupBackupRunningProgress": {
+    "message": "$COMPLETED$/$TOTAL$: $TITLE$",
+    "placeholders": {
+      "completed": {
+        "content": "$1",
+        "example": "3"
+      },
+      "total": {
+        "content": "$2",
+        "example": "10"
+      },
+      "title": {
+        "content": "$3",
+        "example": "Conversation title"
+      }
+    }
+  },
+  "popupBackupCurrentTitleFallback": {
+    "message": "Processing..."
+  },
+  "popupBackupError": {
+    "message": "Error: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "Network timeout"
+      }
+    }
+  },
+
+  "backupManagerDocumentTitle": {
+    "message": "ChatGPT Graph - Backup Manager"
+  },
+  "customBackupDocumentTitle": {
+    "message": "ChatGPT Graph - Custom Backup"
+  },
+  "backupManagerPageTitle": {
+    "message": "Backup Manager"
+  },
+  "customBackupPageTitle": {
+    "message": "Custom Backup"
+  },
+  "backupManagerSearchPlaceholder": {
+    "message": "Search by title or content..."
+  },
+  "customBackupSearchPlaceholder": {
+    "message": "Search conversations by title or content..."
+  },
+  "backupManagerDateAny": {
+    "message": "Any Time"
+  },
+  "backupManagerDateAfter": {
+    "message": "Updated After"
+  },
+  "backupManagerDateBefore": {
+    "message": "Updated Before"
+  },
+  "backupManagerDateBetween": {
+    "message": "Updated Between"
+  },
+  "backupManagerFromDateTitle": {
+    "message": "From backup date"
+  },
+  "backupManagerToDateTitle": {
+    "message": "To backup date"
+  },
+  "customBackupUpdatedFromTitle": {
+    "message": "Updated from"
+  },
+  "customBackupUpdatedToTitle": {
+    "message": "Updated to"
+  },
+  "backupManagerLatestCountPlaceholder": {
+    "message": "Latest N"
+  },
+  "backupManagerSelectVisible": {
+    "message": "Select Visible"
+  },
+  "backupManagerClearSelection": {
+    "message": "Clear Selection"
+  },
+  "backupManagerSelectedCount": {
+    "message": "$COUNT$ selected",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "backupManagerBackupSelected": {
+    "message": "Backup Selected"
+  },
+  "backupManagerExportJson": {
+    "message": "Export JSON"
+  },
+  "backupManagerExportMd": {
+    "message": "Export MD"
+  },
+  "backupManagerExportBoth": {
+    "message": "Export Both"
+  },
+  "backupManagerDelete": {
+    "message": "Delete"
+  },
+  "backupManagerEmpty": {
+    "message": "No backups found"
+  },
+  "customBackupEmpty": {
+    "message": "No conversations found"
+  },
+  "backupManagerLoading": {
+    "message": "Loading backups..."
+  },
+  "customBackupLoading": {
+    "message": "Loading conversations..."
+  },
+  "backupManagerLoadingGeneric": {
+    "message": "Loading..."
+  },
+  "backupManagerStats": {
+    "message": "Backups: $BACKUPS$ · Workspaces: $WORKSPACES$",
+    "placeholders": {
+      "backups": {
+        "content": "$1",
+        "example": "18"
+      },
+      "workspaces": {
+        "content": "$2",
+        "example": "3"
+      }
+    }
+  },
+  "customBackupStats": {
+    "message": "Conversations: $CONVERSATIONS$ · Workspaces: $WORKSPACES$ · Already backed up: $BACKED_UP$",
+    "placeholders": {
+      "conversations": {
+        "content": "$1",
+        "example": "42"
+      },
+      "workspaces": {
+        "content": "$2",
+        "example": "2"
+      },
+      "backed_up": {
+        "content": "$3",
+        "example": "7"
+      }
+    }
+  },
+  "backupManagerWorkspacePersonal": {
+    "message": "Personal"
+  },
+  "backupManagerTableTitle": {
+    "message": "Title"
+  },
+  "backupManagerTablePreview": {
+    "message": "Preview"
+  },
+  "backupManagerTableCreated": {
+    "message": "Created"
+  },
+  "backupManagerTableUpdated": {
+    "message": "Updated"
+  },
+  "backupManagerTableStatus": {
+    "message": "Status"
+  },
+  "backupManagerTableLastBackup": {
+    "message": "Last Backup"
+  },
+  "backupManagerTableMessages": {
+    "message": "Msgs"
+  },
+  "backupManagerTableBackedUp": {
+    "message": "Backed up"
+  },
+  "backupManagerStatusBackedUp": {
+    "message": "Backed up"
+  },
+  "backupManagerStatusNotBackedUp": {
+    "message": "Not backed up"
+  },
+  "backupManagerWorkspaceConversationCount": {
+    "message": "$COUNT$ conversations",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "backupManagerWorkspaceBackupCount": {
+    "message": "$COUNT$ backups",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "backupManagerDeleteConfirm": {
+    "message": "Delete $COUNT$ selected backups? This cannot be undone.",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "backupManagerDeleting": {
+    "message": "Deleting backups..."
+  },
+  "backupManagerDeleteFailed": {
+    "message": "Failed to delete: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "Storage unavailable"
+      }
+    }
+  },
+  "backupManagerPreparingExport": {
+    "message": "Preparing export..."
+  },
+  "backupManagerExportFailed": {
+    "message": "Export failed: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "Zip generation failed"
+      }
+    }
+  },
+  "customBackupPreparing": {
+    "message": "Preparing selected backup..."
+  },
+  "customBackupStarted": {
+    "message": "Backup started..."
+  },
+  "customBackupStartFailed": {
+    "message": "Failed to start backup: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "No active tab"
+      }
+    }
+  },
+  "backupManagerProgressPaused": {
+    "message": "Paused: $COMPLETED$/$TOTAL$",
+    "placeholders": {
+      "completed": {
+        "content": "$1",
+        "example": "4"
+      },
+      "total": {
+        "content": "$2",
+        "example": "10"
+      }
+    }
+  },
+  "backupManagerProgressDone": {
+    "message": "Done! $SUCCESS$ saved, $FAILED$ failed",
+    "placeholders": {
+      "success": {
+        "content": "$1",
+        "example": "9"
+      },
+      "failed": {
+        "content": "$2",
+        "example": "1"
+      }
+    }
+  },
+  "backupManagerProgressRunning": {
+    "message": "$COMPLETED$/$TOTAL$: $TITLE$",
+    "placeholders": {
+      "completed": {
+        "content": "$1",
+        "example": "4"
+      },
+      "total": {
+        "content": "$2",
+        "example": "10"
+      },
+      "title": {
+        "content": "$3",
+        "example": "Conversation title"
+      }
+    }
+  },
+  "backupManagerProgressFallbackTitle": {
+    "message": "Backing up..."
+  },
+  "backupManagerLoadFailed": {
+    "message": "Failed to load data: $ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "The message port closed"
+      }
+    }
+  },
+  "backupManagerUnknownError": {
+    "message": "Unknown error"
+  },
+
   "backupsSectionTitle": {
     "message": "Backups"
   }

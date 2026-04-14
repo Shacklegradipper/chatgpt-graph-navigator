@@ -30,6 +30,23 @@ let debugLogLevels = {
 let backupCount = 0;
 let restoreModeEnabled = false;
 
+function t(key, fallback, substitutions) {
+  const message = i18n(key, substitutions);
+  return message === key ? fallback : message;
+}
+
+function getBackupStatsHTML() {
+  return `${t('popupBackupStatsLabel', 'Backed up conversations')}: <strong>${backupCount}</strong>`;
+}
+
+function setPauseButtonState(button, isPaused) {
+  if (!button) return;
+  button.dataset.state = isPaused ? 'resume' : 'pause';
+  button.textContent = isPaused
+    ? t('popupBackupResume', 'Resume')
+    : t('popupBackupPause', 'Pause');
+}
+
 /**
  * 加载折叠设置
  */
@@ -428,42 +445,42 @@ async function loadBackupState() {
 function createBackupSettingsHTML() {
   return `
     <div class="backup-section">
-      <h3>Backup & Restore</h3>
+      <h3>${t('popupBackupSectionTitle', 'Backup & Restore')}</h3>
       <div class="backup-body">
         <div class="backup-stats" id="backup-stats">
-          Backed up conversations: <strong>${backupCount}</strong>
+          ${getBackupStatsHTML()}
         </div>
 
         <div class="backup-progress" id="backup-progress">
           <div class="backup-progress-bar">
             <div class="backup-progress-fill" id="backup-progress-fill"></div>
           </div>
-          <div class="backup-progress-text" id="backup-progress-text">Preparing...</div>
+          <div class="backup-progress-text" id="backup-progress-text">${t('popupBackupPreparing', 'Preparing...')}</div>
         </div>
 
         <div class="backup-actions" id="backup-actions">
           <button class="secondary" id="backup-start-btn" style="flex: 1;">
-            Batch Backup
+            ${t('popupBatchBackup', 'Batch Backup')}
           </button>
           <button class="secondary" id="backup-pause-btn" style="flex: 1; display: none;">
-            Pause
+            ${t('popupBackupPause', 'Pause')}
           </button>
           <button class="secondary" id="backup-stop-btn" style="flex: 1; display: none;">
-            Stop
+            ${t('popupBackupStop', 'Stop')}
           </button>
           <button class="secondary" id="manage-backups-btn" style="flex: 1;">
-            Manage Backups
+            ${t('popupManageBackups', 'Manage Backups')}
           </button>
         </div>
 
         <div class="backup-actions">
           <button class="secondary" id="custom-backup-btn" style="flex: 1;">
-            Custom Backup
+            ${t('popupCustomBackup', 'Custom Backup')}
           </button>
         </div>
 
         <div class="toggle-switch">
-          <label for="restore-mode-toggle">Restore Mode</label>
+          <label for="restore-mode-toggle">${t('popupRestoreMode', 'Restore Mode')}</label>
           <label class="switch">
             <input type="checkbox" id="restore-mode-toggle" ${restoreModeEnabled ? 'checked' : ''}>
             <span class="slider"></span>
@@ -489,16 +506,26 @@ function bindBackupSettingsEvents() {
   const fillEl = document.getElementById('backup-progress-fill');
   const textEl = document.getElementById('backup-progress-text');
 
-  function showRunningUI() {
+  function showRunningUI(paused = false) {
     if (startBtn) startBtn.style.display = 'none';
-    if (pauseBtn) { pauseBtn.style.display = ''; pauseBtn.textContent = 'Pause'; }
+    if (pauseBtn) {
+      pauseBtn.style.display = '';
+      setPauseButtonState(pauseBtn, paused);
+    }
     if (stopBtn) stopBtn.style.display = '';
     if (progressEl) progressEl.classList.add('active');
   }
 
   function showIdleUI() {
-    if (startBtn) { startBtn.style.display = ''; startBtn.disabled = false; startBtn.textContent = 'Batch Backup'; }
-    if (pauseBtn) pauseBtn.style.display = 'none';
+    if (startBtn) {
+      startBtn.style.display = '';
+      startBtn.disabled = false;
+      startBtn.textContent = t('popupBatchBackup', 'Batch Backup');
+    }
+    if (pauseBtn) {
+      pauseBtn.style.display = 'none';
+      setPauseButtonState(pauseBtn, false);
+    }
     if (stopBtn) stopBtn.style.display = 'none';
   }
 
@@ -509,11 +536,24 @@ function bindBackupSettingsEvents() {
     }
     if (textEl) {
       if (data.status === 'paused') {
-        textEl.textContent = `Paused: ${data.completed}/${data.total}`;
+        textEl.textContent = t(
+          'popupBackupPausedProgress',
+          `Paused: ${data.completed}/${data.total}`,
+          [String(data.completed), String(data.total)]
+        );
       } else if (data.status === 'idle' && data.total > 0) {
-        textEl.textContent = `Done! ${data.success} saved, ${data.skipped} skipped, ${data.failed} failed`;
+        textEl.textContent = t(
+          'popupBackupDoneProgress',
+          `Done! ${data.success} saved, ${data.skipped} skipped, ${data.failed} failed`,
+          [String(data.success), String(data.skipped), String(data.failed)]
+        );
       } else {
-        textEl.textContent = `${data.completed}/${data.total}: ${data.currentTitle || ''}`;
+        const title = data.currentTitle || t('popupBackupCurrentTitleFallback', 'Processing...');
+        textEl.textContent = t(
+          'popupBackupRunningProgress',
+          `${data.completed}/${data.total}: ${title}`,
+          [String(data.completed), String(data.total), title]
+        );
       }
     }
   }
@@ -525,16 +565,15 @@ function bindBackupSettingsEvents() {
       updateProgressUI(data);
 
       if (data.status === 'running') {
-        showRunningUI();
+        showRunningUI(false);
       } else if (data.status === 'paused') {
-        showRunningUI();
-        if (pauseBtn) pauseBtn.textContent = 'Resume';
+        showRunningUI(true);
       } else if (data.status === 'idle') {
         showIdleUI();
         // Refresh backup count
         loadBackupState().then(() => {
           const statsEl = document.getElementById('backup-stats');
-          if (statsEl) statsEl.innerHTML = `Backed up conversations: <strong>${backupCount}</strong>`;
+          if (statsEl) statsEl.innerHTML = getBackupStatsHTML();
         });
       }
     }
@@ -545,10 +584,9 @@ function bindBackupSettingsEvents() {
     const data = resp?.data;
     if (data && data.status !== 'idle') {
       updateProgressUI(data);
-      if (data.status === 'running') showRunningUI();
+      if (data.status === 'running') showRunningUI(false);
       else if (data.status === 'paused') {
-        showRunningUI();
-        if (pauseBtn) pauseBtn.textContent = 'Resume';
+        showRunningUI(true);
       }
     }
   }).catch(() => {});
@@ -569,20 +607,32 @@ function bindBackupSettingsEvents() {
   if (startBtn) {
     startBtn.addEventListener('click', async () => {
       startBtn.disabled = true;
-      startBtn.textContent = 'Starting...';
+      startBtn.textContent = t('popupBackupStarting', 'Starting...');
       if (progressEl) progressEl.classList.add('active');
 
       try {
         const resp = await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.BACKUP_START });
         const result = resp?.data;
         if (result?.error) {
-          if (textEl) textEl.textContent = `Error: ${result.error}`;
+          if (textEl) {
+            textEl.textContent = t(
+              'popupBackupError',
+              `Error: ${result.error}`,
+              result.error
+            );
+          }
           showIdleUI();
         } else {
-          showRunningUI();
+          showRunningUI(false);
         }
       } catch (err) {
-        if (textEl) textEl.textContent = `Error: ${err.message}`;
+        if (textEl) {
+          textEl.textContent = t(
+            'popupBackupError',
+            `Error: ${err.message}`,
+            err.message
+          );
+        }
         showIdleUI();
       }
     });
@@ -590,12 +640,12 @@ function bindBackupSettingsEvents() {
 
   if (pauseBtn) {
     pauseBtn.addEventListener('click', async () => {
-      if (pauseBtn.textContent === 'Pause') {
+      if ((pauseBtn.dataset.state || 'pause') === 'pause') {
         await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.BACKUP_PAUSE });
-        pauseBtn.textContent = 'Resume';
+        setPauseButtonState(pauseBtn, true);
       } else {
         await chrome.runtime.sendMessage({ type: MESSAGE_TYPES.BACKUP_RESUME });
-        pauseBtn.textContent = 'Pause';
+        setPauseButtonState(pauseBtn, false);
       }
     });
   }

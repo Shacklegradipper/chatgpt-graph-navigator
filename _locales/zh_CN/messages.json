@@ -474,6 +474,377 @@
     "message": "错误"
   },
 
+  "popupBackupSectionTitle": {
+    "message": "备份与恢复"
+  },
+  "popupBackupStatsLabel": {
+    "message": "已备份对话"
+  },
+  "popupBackupPreparing": {
+    "message": "准备中..."
+  },
+  "popupBatchBackup": {
+    "message": "完整备份"
+  },
+  "popupBackupPause": {
+    "message": "暂停"
+  },
+  "popupBackupResume": {
+    "message": "继续"
+  },
+  "popupBackupStop": {
+    "message": "停止"
+  },
+  "popupManageBackups": {
+    "message": "管理备份"
+  },
+  "popupCustomBackup": {
+    "message": "自定义备份"
+  },
+  "popupRestoreMode": {
+    "message": "恢复模式"
+  },
+  "popupBackupStarting": {
+    "message": "启动中..."
+  },
+  "popupBackupPausedProgress": {
+    "message": "已暂停：$COMPLETED$/$TOTAL$",
+    "placeholders": {
+      "completed": {
+        "content": "$1",
+        "example": "3"
+      },
+      "total": {
+        "content": "$2",
+        "example": "10"
+      }
+    }
+  },
+  "popupBackupDoneProgress": {
+    "message": "已完成：成功 $SUCCESS$，跳过 $SKIPPED$，失败 $FAILED$",
+    "placeholders": {
+      "success": {
+        "content": "$1",
+        "example": "8"
+      },
+      "skipped": {
+        "content": "$2",
+        "example": "1"
+      },
+      "failed": {
+        "content": "$3",
+        "example": "1"
+      }
+    }
+  },
+  "popupBackupRunningProgress": {
+    "message": "$COMPLETED$/$TOTAL$：$TITLE$",
+    "placeholders": {
+      "completed": {
+        "content": "$1",
+        "example": "3"
+      },
+      "total": {
+        "content": "$2",
+        "example": "10"
+      },
+      "title": {
+        "content": "$3",
+        "example": "对话标题"
+      }
+    }
+  },
+  "popupBackupCurrentTitleFallback": {
+    "message": "处理中..."
+  },
+  "popupBackupError": {
+    "message": "错误：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "网络超时"
+      }
+    }
+  },
+
+  "backupManagerDocumentTitle": {
+    "message": "ChatGPT Graph - 备份管理"
+  },
+  "customBackupDocumentTitle": {
+    "message": "ChatGPT Graph - 自定义备份"
+  },
+  "backupManagerPageTitle": {
+    "message": "备份管理"
+  },
+  "customBackupPageTitle": {
+    "message": "自定义备份"
+  },
+  "backupManagerSearchPlaceholder": {
+    "message": "按标题或内容搜索..."
+  },
+  "customBackupSearchPlaceholder": {
+    "message": "按对话标题或内容搜索..."
+  },
+  "backupManagerDateAny": {
+    "message": "不限时间"
+  },
+  "backupManagerDateAfter": {
+    "message": "更新于之后"
+  },
+  "backupManagerDateBefore": {
+    "message": "更新于之前"
+  },
+  "backupManagerDateBetween": {
+    "message": "更新于区间内"
+  },
+  "backupManagerFromDateTitle": {
+    "message": "备份日期起点"
+  },
+  "backupManagerToDateTitle": {
+    "message": "备份日期终点"
+  },
+  "customBackupUpdatedFromTitle": {
+    "message": "更新起点"
+  },
+  "customBackupUpdatedToTitle": {
+    "message": "更新终点"
+  },
+  "backupManagerLatestCountPlaceholder": {
+    "message": "最新 N 条"
+  },
+  "backupManagerSelectVisible": {
+    "message": "选中当前结果"
+  },
+  "backupManagerClearSelection": {
+    "message": "清空选择"
+  },
+  "backupManagerSelectedCount": {
+    "message": "已选 $COUNT$ 项",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "12"
+      }
+    }
+  },
+  "backupManagerBackupSelected": {
+    "message": "备份所选"
+  },
+  "backupManagerExportJson": {
+    "message": "导出 JSON"
+  },
+  "backupManagerExportMd": {
+    "message": "导出 MD"
+  },
+  "backupManagerExportBoth": {
+    "message": "同时导出"
+  },
+  "backupManagerDelete": {
+    "message": "删除"
+  },
+  "backupManagerEmpty": {
+    "message": "未找到备份"
+  },
+  "customBackupEmpty": {
+    "message": "未找到对话"
+  },
+  "backupManagerLoading": {
+    "message": "正在加载备份..."
+  },
+  "customBackupLoading": {
+    "message": "正在加载对话..."
+  },
+  "backupManagerLoadingGeneric": {
+    "message": "加载中..."
+  },
+  "backupManagerStats": {
+    "message": "备份：$BACKUPS$ · 工作区：$WORKSPACES$",
+    "placeholders": {
+      "backups": {
+        "content": "$1",
+        "example": "18"
+      },
+      "workspaces": {
+        "content": "$2",
+        "example": "3"
+      }
+    }
+  },
+  "customBackupStats": {
+    "message": "对话：$CONVERSATIONS$ · 工作区：$WORKSPACES$ · 已备份：$BACKED_UP$",
+    "placeholders": {
+      "conversations": {
+        "content": "$1",
+        "example": "42"
+      },
+      "workspaces": {
+        "content": "$2",
+        "example": "2"
+      },
+      "backed_up": {
+        "content": "$3",
+        "example": "7"
+      }
+    }
+  },
+  "backupManagerWorkspacePersonal": {
+    "message": "个人"
+  },
+  "backupManagerTableTitle": {
+    "message": "标题"
+  },
+  "backupManagerTablePreview": {
+    "message": "预览"
+  },
+  "backupManagerTableCreated": {
+    "message": "创建时间"
+  },
+  "backupManagerTableUpdated": {
+    "message": "更新时间"
+  },
+  "backupManagerTableStatus": {
+    "message": "状态"
+  },
+  "backupManagerTableLastBackup": {
+    "message": "最近备份"
+  },
+  "backupManagerTableMessages": {
+    "message": "消息数"
+  },
+  "backupManagerTableBackedUp": {
+    "message": "备份时间"
+  },
+  "backupManagerStatusBackedUp": {
+    "message": "已备份"
+  },
+  "backupManagerStatusNotBackedUp": {
+    "message": "未备份"
+  },
+  "backupManagerWorkspaceConversationCount": {
+    "message": "$COUNT$ 个对话",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "backupManagerWorkspaceBackupCount": {
+    "message": "$COUNT$ 个备份",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "5"
+      }
+    }
+  },
+  "backupManagerDeleteConfirm": {
+    "message": "确定删除所选的 $COUNT$ 个备份吗？此操作不可撤销。",
+    "placeholders": {
+      "count": {
+        "content": "$1",
+        "example": "3"
+      }
+    }
+  },
+  "backupManagerDeleting": {
+    "message": "正在删除备份..."
+  },
+  "backupManagerDeleteFailed": {
+    "message": "删除失败：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "存储不可用"
+      }
+    }
+  },
+  "backupManagerPreparingExport": {
+    "message": "正在准备导出..."
+  },
+  "backupManagerExportFailed": {
+    "message": "导出失败：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "压缩包生成失败"
+      }
+    }
+  },
+  "customBackupPreparing": {
+    "message": "正在准备所选备份..."
+  },
+  "customBackupStarted": {
+    "message": "备份已开始..."
+  },
+  "customBackupStartFailed": {
+    "message": "启动备份失败：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "未找到活动标签页"
+      }
+    }
+  },
+  "backupManagerProgressPaused": {
+    "message": "已暂停：$COMPLETED$/$TOTAL$",
+    "placeholders": {
+      "completed": {
+        "content": "$1",
+        "example": "4"
+      },
+      "total": {
+        "content": "$2",
+        "example": "10"
+      }
+    }
+  },
+  "backupManagerProgressDone": {
+    "message": "已完成：成功 $SUCCESS$，失败 $FAILED$",
+    "placeholders": {
+      "success": {
+        "content": "$1",
+        "example": "9"
+      },
+      "failed": {
+        "content": "$2",
+        "example": "1"
+      }
+    }
+  },
+  "backupManagerProgressRunning": {
+    "message": "$COMPLETED$/$TOTAL$：$TITLE$",
+    "placeholders": {
+      "completed": {
+        "content": "$1",
+        "example": "4"
+      },
+      "total": {
+        "content": "$2",
+        "example": "10"
+      },
+      "title": {
+        "content": "$3",
+        "example": "对话标题"
+      }
+    }
+  },
+  "backupManagerProgressFallbackTitle": {
+    "message": "备份中..."
+  },
+  "backupManagerLoadFailed": {
+    "message": "加载数据失败：$ERROR$",
+    "placeholders": {
+      "error": {
+        "content": "$1",
+        "example": "消息端口已关闭"
+      }
+    }
+  },
+  "backupManagerUnknownError": {
+    "message": "未知错误"
+  },
+
   "backupsSectionTitle": {
     "message": "备份"
   }

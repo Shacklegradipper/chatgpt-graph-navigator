@@ -2,6 +2,7 @@
  * Backup Manager / Custom Backup page
  */
 
+import { initI18n, i18n, getCurrentLocale } from '../shared/i18n.js';
 import { MESSAGE_TYPES } from '../shared/constants.js';
 import { exportAsZip } from './export-utils.js';
 
@@ -38,6 +39,43 @@ let exportJsonBtn;
 let exportMdBtn;
 let exportBothBtn;
 let deleteBtn;
+let dateFormatterLocale = '';
+let dateFormatter = null;
+
+function t(key, fallback, substitutions) {
+  const message = i18n(key, substitutions);
+  return message === key ? fallback : message;
+}
+
+function getLocaleTag() {
+  return (getCurrentLocale() || 'en').replace('_', '-');
+}
+
+function getDateFormatter() {
+  const locale = getLocaleTag();
+  if (!dateFormatter || dateFormatterLocale !== locale) {
+    dateFormatterLocale = locale;
+    dateFormatter = new Intl.DateTimeFormat(locale, {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    });
+  }
+
+  return dateFormatter;
+}
+
+function getPersonalWorkspaceLabel() {
+  return t('backupManagerWorkspacePersonal', 'Personal');
+}
+
+function normalizeWorkspaceName(workspaceName) {
+  if (!workspaceName || workspaceName === 'Personal') {
+    return getPersonalWorkspaceLabel();
+  }
+
+  return workspaceName;
+}
 
 function debounce(fn, ms) {
   let timer;
@@ -51,7 +89,7 @@ function formatDate(ts) {
   if (!ts) return '\u2014';
   const value = ts > 1e12 ? ts : ts * 1000;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? '\u2014' : date.toLocaleDateString('en-CA');
+  return Number.isNaN(date.getTime()) ? '\u2014' : getDateFormatter().format(date);
 }
 
 function escapeHtml(str) {
@@ -73,12 +111,12 @@ function sendMessage(type, payload = {}) {
         return;
       }
 
-      reject(new Error(response?.error || 'Unknown error'));
+      reject(new Error(response?.error || t('backupManagerUnknownError', 'Unknown error')));
     });
   });
 }
 
-function showLoading(text = 'Loading...') {
+function showLoading(text = t('backupManagerLoadingGeneric', 'Loading...')) {
   loadingText.textContent = text;
   loadingOverlay.classList.add('visible');
 }
@@ -161,24 +199,48 @@ function updateDateInputsVisibility() {
 
   dateFromInput.style.display = showFrom ? '' : 'none';
   dateToInput.style.display = showTo ? '' : 'none';
-  dateFromInput.title = isCustomMode() ? 'Updated from' : 'From backup date';
-  dateToInput.title = isCustomMode() ? 'Updated to' : 'To backup date';
+  dateFromInput.title = isCustomMode()
+    ? t('customBackupUpdatedFromTitle', 'Updated from')
+    : t('backupManagerFromDateTitle', 'From backup date');
+  dateToInput.title = isCustomMode()
+    ? t('customBackupUpdatedToTitle', 'Updated to')
+    : t('backupManagerToDateTitle', 'To backup date');
+}
+
+function updateEmptyStateText() {
+  const textEl = emptyState?.querySelector('p');
+  if (!textEl) return;
+
+  textEl.textContent = isCustomMode()
+    ? t('customBackupEmpty', 'No conversations found')
+    : t('backupManagerEmpty', 'No backups found');
 }
 
 function updatePageMeta() {
   if (isCustomMode()) {
-    document.title = 'ChatGPT Graph - Custom Backup';
-    pageTitleEl.textContent = 'Custom Backup';
-    searchInput.placeholder = 'Search conversations by title or content...';
+    document.title = t('customBackupDocumentTitle', 'ChatGPT Graph - Custom Backup');
+    pageTitleEl.textContent = t('customBackupPageTitle', 'Custom Backup');
+    searchInput.placeholder = t(
+      'customBackupSearchPlaceholder',
+      'Search conversations by title or content...'
+    );
+    loadingText.textContent = t('customBackupLoading', 'Loading conversations...');
   } else {
-    document.title = 'ChatGPT Graph - Backup Manager';
-    pageTitleEl.textContent = 'Backup Manager';
-    searchInput.placeholder = 'Search by title or content...';
+    document.title = t('backupManagerDocumentTitle', 'ChatGPT Graph - Backup Manager');
+    pageTitleEl.textContent = t('backupManagerPageTitle', 'Backup Manager');
+    searchInput.placeholder = t('backupManagerSearchPlaceholder', 'Search by title or content...');
+    loadingText.textContent = t('backupManagerLoading', 'Loading backups...');
   }
+
+  updateEmptyStateText();
 }
 
 async function loadItems() {
-  showLoading(isCustomMode() ? 'Loading conversations...' : 'Loading backups...');
+  showLoading(
+    isCustomMode()
+      ? t('customBackupLoading', 'Loading conversations...')
+      : t('backupManagerLoading', 'Loading backups...')
+  );
 
   try {
     const data = isCustomMode()
@@ -196,7 +258,7 @@ async function loadItems() {
     filteredItems = [];
     renderFolders();
     updateStats();
-    alert(error.message);
+    alert(t('backupManagerLoadFailed', `Failed to load data: ${error.message}`, error.message));
   } finally {
     if (!backupProgressActive) {
       hideLoading();
@@ -205,18 +267,25 @@ async function loadItems() {
 }
 
 function updateStats() {
-  const workspaceCount = new Set(allItems.map(item => item.workspace_name || 'Personal')).size;
+  const workspaceCount = new Set(
+    allItems.map(item => normalizeWorkspaceName(item.workspace_name))
+  ).size;
 
   if (isCustomMode()) {
     const backedUpCount = allItems.filter(item => item.already_backed_up).length;
-    headerStatsEl.textContent =
-      `${allItems.length} conversations in ${workspaceCount} workspace${workspaceCount !== 1 ? 's' : ''} · ` +
-      `${backedUpCount} already backed up`;
+    headerStatsEl.textContent = t(
+      'customBackupStats',
+      `Conversations: ${allItems.length} · Workspaces: ${workspaceCount} · Already backed up: ${backedUpCount}`,
+      [String(allItems.length), String(workspaceCount), String(backedUpCount)]
+    );
     return;
   }
 
-  headerStatsEl.textContent =
-    `${allItems.length} backups in ${workspaceCount} workspace${workspaceCount !== 1 ? 's' : ''}`;
+  headerStatsEl.textContent = t(
+    'backupManagerStats',
+    `Backups: ${allItems.length} · Workspaces: ${workspaceCount}`,
+    [String(allItems.length), String(workspaceCount)]
+  );
 }
 
 function applyFilters() {
@@ -263,7 +332,7 @@ function applySort() {
 function groupByWorkspace() {
   const groups = {};
   for (const item of filteredItems) {
-    const workspaceName = item.workspace_name || 'Personal';
+    const workspaceName = normalizeWorkspaceName(item.workspace_name);
     if (!groups[workspaceName]) {
       groups[workspaceName] = [];
     }
@@ -277,12 +346,12 @@ function renderTableHead() {
     return `
       <tr>
         <th class="col-checkbox"></th>
-        <th class="sortable" data-sort="title">Title <span class="sort-arrow"></span></th>
-        <th class="col-preview">Preview</th>
-        <th class="sortable" data-sort="create_time">Created <span class="sort-arrow"></span></th>
-        <th class="sortable" data-sort="update_time">Updated <span class="sort-arrow"></span></th>
-        <th class="col-status">Status</th>
-        <th class="sortable" data-sort="backup_time">Last Backup <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort="title">${t('backupManagerTableTitle', 'Title')} <span class="sort-arrow"></span></th>
+        <th class="col-preview">${t('backupManagerTablePreview', 'Preview')}</th>
+        <th class="sortable" data-sort="create_time">${t('backupManagerTableCreated', 'Created')} <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort="update_time">${t('backupManagerTableUpdated', 'Updated')} <span class="sort-arrow"></span></th>
+        <th class="col-status">${t('backupManagerTableStatus', 'Status')}</th>
+        <th class="sortable" data-sort="backup_time">${t('backupManagerTableLastBackup', 'Last Backup')} <span class="sort-arrow"></span></th>
       </tr>
     `;
   }
@@ -290,12 +359,12 @@ function renderTableHead() {
   return `
     <tr>
       <th class="col-checkbox"></th>
-      <th class="sortable" data-sort="title">Title <span class="sort-arrow"></span></th>
-      <th class="col-preview">Preview</th>
-      <th class="sortable" data-sort="message_count">Msgs <span class="sort-arrow"></span></th>
-      <th class="sortable" data-sort="create_time">Created <span class="sort-arrow"></span></th>
-      <th class="sortable" data-sort="update_time">Updated <span class="sort-arrow"></span></th>
-      <th class="sortable" data-sort="backup_time">Backed up <span class="sort-arrow"></span></th>
+      <th class="sortable" data-sort="title">${t('backupManagerTableTitle', 'Title')} <span class="sort-arrow"></span></th>
+      <th class="col-preview">${t('backupManagerTablePreview', 'Preview')}</th>
+      <th class="sortable" data-sort="message_count">${t('backupManagerTableMessages', 'Msgs')} <span class="sort-arrow"></span></th>
+      <th class="sortable" data-sort="create_time">${t('backupManagerTableCreated', 'Created')} <span class="sort-arrow"></span></th>
+      <th class="sortable" data-sort="update_time">${t('backupManagerTableUpdated', 'Updated')} <span class="sort-arrow"></span></th>
+      <th class="sortable" data-sort="backup_time">${t('backupManagerTableBackedUp', 'Backed up')} <span class="sort-arrow"></span></th>
     </tr>
   `;
 }
@@ -303,8 +372,9 @@ function renderTableHead() {
 function renderFolders() {
   const groups = groupByWorkspace();
   const workspaceNames = Object.keys(groups).sort((a, b) => {
-    if (a === 'Personal') return -1;
-    if (b === 'Personal') return 1;
+    const personalLabel = getPersonalWorkspaceLabel();
+    if (a === personalLabel) return -1;
+    if (b === personalLabel) return 1;
     return a.localeCompare(b);
   });
 
@@ -338,7 +408,18 @@ function createFolder(workspaceName, items, state) {
   const selectedCount = items.filter(item => selectedIds.has(item.conversation_id)).length;
   const allSelected = items.length > 0 && selectedCount === items.length;
   const someSelected = selectedCount > 0 && !allSelected;
-  const badgeClass = workspaceName === 'Personal' ? 'personal' : 'team';
+  const badgeClass = workspaceName === getPersonalWorkspaceLabel() ? 'personal' : 'team';
+  const workspaceCountText = isCustomMode()
+    ? t(
+      'backupManagerWorkspaceConversationCount',
+      `${items.length} conversations`,
+      String(items.length)
+    )
+    : t(
+      'backupManagerWorkspaceBackupCount',
+      `${items.length} backups`,
+      String(items.length)
+    );
 
   folder.innerHTML = `
     <div class="ws-header" data-ws="${escapeHtml(workspaceName)}">
@@ -351,7 +432,7 @@ function createFolder(workspaceName, items, state) {
       >
       <span class="ws-arrow">${state.expanded ? '\u25BC' : '\u25B6'}</span>
       <span class="workspace-badge ${badgeClass}">${escapeHtml(workspaceName)}</span>
-      <span class="ws-count">${items.length} conversation${items.length !== 1 ? 's' : ''}</span>
+      <span class="ws-count">${workspaceCountText}</span>
     </div>
     <div class="ws-body" style="display:${state.expanded ? 'block' : 'none'}">
       <table>
@@ -462,7 +543,7 @@ function setupScrollObserver(folder, items, state) {
 function renderRow(item) {
   const id = item.conversation_id;
   const checked = selectedIds.has(id) ? 'checked' : '';
-  const title = escapeHtml(item.title || 'Untitled');
+  const title = escapeHtml(item.title || t('untitled', 'Untitled'));
   const preview = escapeHtml(item.content_preview || '\u2014');
   const created = formatDate(item.create_time);
   const updated = formatDate(item.update_time);
@@ -470,7 +551,9 @@ function renderRow(item) {
 
   if (isCustomMode()) {
     const statusClass = item.already_backed_up ? 'backed-up' : 'not-backed-up';
-    const statusLabel = item.already_backed_up ? 'Backed up' : 'Not backed up';
+    const statusLabel = item.already_backed_up
+      ? t('backupManagerStatusBackedUp', 'Backed up')
+      : t('backupManagerStatusNotBackedUp', 'Not backed up');
 
     return `
       <tr data-id="${id}">
@@ -506,7 +589,11 @@ function updateActionBar() {
   }
 
   actionBar.classList.add('visible');
-  selectedCountEl.textContent = `${selectedIds.size} selected`;
+  selectedCountEl.textContent = t(
+    'backupManagerSelectedCount',
+    `${selectedIds.size} selected`,
+    String(selectedIds.size)
+  );
 }
 
 function updateModeSpecificActions() {
@@ -533,17 +620,23 @@ async function deleteSelected() {
   const count = selectedIds.size;
   if (!count) return;
 
-  if (!window.confirm(`Delete ${count} backup${count > 1 ? 's' : ''}? This cannot be undone.`)) {
+  if (!window.confirm(
+    t(
+      'backupManagerDeleteConfirm',
+      `Delete ${count} selected backups? This cannot be undone.`,
+      String(count)
+    )
+  )) {
     return;
   }
 
-  showLoading('Deleting backups...');
+  showLoading(t('backupManagerDeleting', 'Deleting backups...'));
   try {
     await sendMessage(MESSAGE_TYPES.BATCH_DELETE_BACKUPS, { ids: [...selectedIds] });
     selectedIds.clear();
     await loadItems();
   } catch (error) {
-    alert(`Failed to delete: ${error.message}`);
+    alert(t('backupManagerDeleteFailed', `Failed to delete: ${error.message}`, error.message));
     hideLoading();
   }
 }
@@ -551,12 +644,12 @@ async function deleteSelected() {
 async function exportSelected(format) {
   if (!selectedIds.size) return;
 
-  showLoading('Preparing export...');
+  showLoading(t('backupManagerPreparingExport', 'Preparing export...'));
   try {
     const backups = await sendMessage(MESSAGE_TYPES.BATCH_GET_BACKUPS, { ids: [...selectedIds] });
     await exportAsZip(backups, { format });
   } catch (error) {
-    alert(`Export failed: ${error.message}`);
+    alert(t('backupManagerExportFailed', `Export failed: ${error.message}`, error.message));
   } finally {
     hideLoading();
   }
@@ -564,20 +657,33 @@ async function exportSelected(format) {
 
 function formatProgressText(data) {
   if (data.status === 'paused') {
-    return `Paused: ${data.completed}/${data.total}`;
+    return t(
+      'backupManagerProgressPaused',
+      `Paused: ${data.completed}/${data.total}`,
+      [String(data.completed), String(data.total)]
+    );
   }
 
   if (data.status === 'idle') {
-    return `Done! ${data.success} saved, ${data.failed} failed`;
+    return t(
+      'backupManagerProgressDone',
+      `Done! ${data.success} saved, ${data.failed} failed`,
+      [String(data.success), String(data.failed)]
+    );
   }
 
-  return `${data.completed}/${data.total}: ${data.currentTitle || 'Backing up...'}`;
+  const title = data.currentTitle || t('backupManagerProgressFallbackTitle', 'Backing up...');
+  return t(
+    'backupManagerProgressRunning',
+    `${data.completed}/${data.total}: ${title}`,
+    [String(data.completed), String(data.total), title]
+  );
 }
 
 async function startSelectedBackup() {
   if (!selectedIds.size) return;
 
-  showLoading('Preparing selected backup...');
+  showLoading(t('customBackupPreparing', 'Preparing selected backup...'));
 
   try {
     const result = await sendMessage(MESSAGE_TYPES.BACKUP_START, {
@@ -589,11 +695,11 @@ async function startSelectedBackup() {
     }
 
     backupProgressActive = true;
-    loadingText.textContent = 'Backup started...';
+    loadingText.textContent = t('customBackupStarted', 'Backup started...');
   } catch (error) {
     backupProgressActive = false;
     hideLoading();
-    alert(`Failed to start backup: ${error.message}`);
+    alert(t('customBackupStartFailed', `Failed to start backup: ${error.message}`, error.message));
   }
 }
 
@@ -640,6 +746,7 @@ function bindEvents() {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+  await initI18n();
   pageTitleEl = document.getElementById('page-title');
   foldersContainer = document.getElementById('folders-container');
   emptyState = document.getElementById('empty-state');

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-i18n-title="backupManagerDocumentTitle">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -572,46 +572,60 @@
         <div class="brand">
           <div class="brand-icon"><img src="/assets/icon128.png" alt="ChatGPT Graph"></div>
         </div>
-        <h1 class="header-title" id="page-title">Backup Manager</h1>
+        <h1 class="header-title" id="page-title" data-i18n="backupManagerPageTitle">Backup Manager</h1>
       </div>
       <div class="header-stats" id="header-stats"></div>
     </header>
 
     <div class="toolbar">
-      <input type="text" class="search-input" id="search-input" placeholder="Search by title or content...">
+      <input
+        type="text"
+        class="search-input"
+        id="search-input"
+        placeholder="Search by title or content..."
+        data-i18n-placeholder="backupManagerSearchPlaceholder"
+      >
       <select class="filter-select" id="date-filter-mode">
-        <option value="any">Any Time</option>
-        <option value="after">Updated After</option>
-        <option value="before">Updated Before</option>
-        <option value="between">Updated Between</option>
+        <option value="any" data-i18n="backupManagerDateAny">Any Time</option>
+        <option value="after" data-i18n="backupManagerDateAfter">Updated After</option>
+        <option value="before" data-i18n="backupManagerDateBefore">Updated Before</option>
+        <option value="between" data-i18n="backupManagerDateBetween">Updated Between</option>
       </select>
-      <input type="date" class="filter-date" id="date-from" title="From date">
-      <input type="date" class="filter-date" id="date-to" title="To date">
-      <input type="number" class="filter-number" id="latest-count" min="1" step="1" placeholder="Latest N">
-      <button class="toolbar-btn" id="select-visible-btn">Select Visible</button>
-      <button class="toolbar-btn" id="clear-selection-btn">Clear Selection</button>
+      <input type="date" class="filter-date" id="date-from" title="From date" data-i18n-title="backupManagerFromDateTitle">
+      <input type="date" class="filter-date" id="date-to" title="To date" data-i18n-title="backupManagerToDateTitle">
+      <input
+        type="number"
+        class="filter-number"
+        id="latest-count"
+        min="1"
+        step="1"
+        placeholder="Latest N"
+        data-i18n-placeholder="backupManagerLatestCountPlaceholder"
+      >
+      <button class="toolbar-btn" id="select-visible-btn" data-i18n="backupManagerSelectVisible">Select Visible</button>
+      <button class="toolbar-btn" id="clear-selection-btn" data-i18n="backupManagerClearSelection">Clear Selection</button>
     </div>
 
     <div class="action-bar" id="action-bar">
       <span class="count" id="selected-count">0 selected</span>
-      <button class="action-btn" id="backup-selected-btn">Backup Selected</button>
-      <button class="action-btn" id="export-json-btn">Export JSON</button>
-      <button class="action-btn" id="export-md-btn">Export MD</button>
-      <button class="action-btn" id="export-both-btn">Export Both</button>
-      <button class="action-btn danger" id="delete-btn">Delete</button>
+      <button class="action-btn" id="backup-selected-btn" data-i18n="backupManagerBackupSelected">Backup Selected</button>
+      <button class="action-btn" id="export-json-btn" data-i18n="backupManagerExportJson">Export JSON</button>
+      <button class="action-btn" id="export-md-btn" data-i18n="backupManagerExportMd">Export MD</button>
+      <button class="action-btn" id="export-both-btn" data-i18n="backupManagerExportBoth">Export Both</button>
+      <button class="action-btn danger" id="delete-btn" data-i18n="backupManagerDelete">Delete</button>
     </div>
 
     <div id="folders-container"></div>
 
     <div class="empty-state" id="empty-state" style="display:none;">
       <div class="empty-icon">&#128451;</div>
-      <p>No backups found</p>
+      <p data-i18n="backupManagerEmpty">No backups found</p>
     </div>
   </div>
 
   <div class="loading-overlay" id="loading-overlay">
     <div class="spinner"></div>
-    <p id="loading-text">Loading backups...</p>
+    <p id="loading-text" data-i18n="backupManagerLoading">Loading backups...</p>
   </div>
 
   <script src="../../dist/backup-manager.js"></script>
