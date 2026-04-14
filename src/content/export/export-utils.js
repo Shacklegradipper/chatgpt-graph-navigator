@@ -10,7 +10,10 @@ import { findArticleByMessageId, getAllMessageContainers } from '../utils/messag
 
 const MAX_SECTION_HEIGHT = 16000;
 const EXPORT_PADDING = 24;
+const SINGLE_EXPORT_PADDING = 10;
 const EXPORT_GAP = 16;
+const EXPORT_TEXT_FONT_FAMILY =
+  '"OpenAI Sans", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif';
 const FALLBACK_RENDER_WIDTH = 920;
 const MAX_PNG_CANVAS_DIMENSION = 8192;
 const MAX_PNG_CANVAS_PIXELS = 24000000;
@@ -526,7 +529,8 @@ function copyComputedStyles(source, target, computedStyleCache) {
   const computed = getComputedStyleCached(computedStyleCache, source);
   const defaultSnapshot = getDefaultStyleSnapshot(source);
   for (const property of STYLE_PROPERTIES_TO_COPY) {
-    const value = computed.getPropertyValue(property);
+    const rawValue = computed.getPropertyValue(property);
+    const value = property === 'font-family' ? normalizeExportFontFamily(rawValue) : rawValue;
     if (!shouldCopyComputedStyleProperty(source, property, value, computedStyleCache, defaultSnapshot)) {
       continue;
     }
@@ -784,6 +788,46 @@ function isEmbeddableFontFamily(family) {
   return EMBEDDABLE_FONT_FAMILY_PREFIXES.some(prefix => family.startsWith(prefix));
 }
 
+function isMonospaceFontFamily(family) {
+  const normalizedFamily = normalizeFontFamilyName(family).toLowerCase();
+  return (
+    normalizedFamily.includes('mono') ||
+    normalizedFamily.includes('code') ||
+    normalizedFamily === 'consolas' ||
+    normalizedFamily === 'menlo' ||
+    normalizedFamily === 'monospace'
+  );
+}
+
+function shouldNormalizeToExportSansFont(fontFamilyValue) {
+  const families = parseFontFamilyList(fontFamilyValue);
+  if (families.length === 0) {
+    return false;
+  }
+
+  if (families.some(family => family.startsWith('KaTeX_') || isMonospaceFontFamily(family))) {
+    return false;
+  }
+
+  return families.some(family => {
+    const normalizedFamily = normalizeFontFamilyName(family).toLowerCase();
+    return (
+      normalizedFamily === 'ui-sans-serif' ||
+      normalizedFamily === 'system-ui' ||
+      normalizedFamily === 'openai sans' ||
+      normalizedFamily === 'circle' ||
+      normalizedFamily === 'segoe ui' ||
+      normalizedFamily === 'helvetica' ||
+      normalizedFamily === 'arial' ||
+      normalizedFamily === 'sans-serif'
+    );
+  });
+}
+
+function normalizeExportFontFamily(fontFamilyValue) {
+  return shouldNormalizeToExportSansFont(fontFamilyValue) ? EXPORT_TEXT_FONT_FAMILY : fontFamilyValue;
+}
+
 function addEmbeddableFontRequest(requests, family, style, weight) {
   if (!family || !isEmbeddableFontFamily(family)) {
     return;
@@ -814,6 +858,10 @@ function collectEmbeddableFontRequests(rootOrRoots) {
       parseFontFamilyList(computed.fontFamily).forEach(family => {
         addEmbeddableFontRequest(requests, family, style, weight);
       });
+
+      if (shouldNormalizeToExportSansFont(computed.fontFamily)) {
+        addEmbeddableFontRequest(requests, 'OpenAI Sans', style, weight);
+      }
     });
   });
 
@@ -1148,6 +1196,9 @@ function attachLogicalAssetSize(asset, metadata = {}) {
   if (metadata.variant) {
     asset.variant = metadata.variant;
   }
+  if (metadata.preserveTypography != null) {
+    asset.preserveTypography = Boolean(metadata.preserveTypography);
+  }
   return asset;
 }
 
@@ -1236,12 +1287,14 @@ function prepareRenderAssetsForPngCapture(renderAssets) {
     const logicalWidth = normalizePositiveDimension(asset.logicalWidth || asset.width, asset.width);
     const logicalHeight = normalizePositiveDimension(asset.logicalHeight || asset.height, asset.height);
     const captureScale = getPngCaptureScale(logicalWidth);
+    const preserveTypography = asset.kind === 'html' && asset.preserveTypography !== false;
 
-    if (captureScale <= 1) {
+    if (captureScale <= 1 || preserveTypography) {
       if (asset.kind === 'html') {
         return createHtmlExportAsset(asset.html, asset.width, asset.height, asset.background, {
           logicalWidth,
-          logicalHeight
+          logicalHeight,
+          preserveTypography
         });
       }
 
@@ -1316,12 +1369,13 @@ function serializeWrapperToHtml(wrapper, embeddedCss = '') {
   return serializableWrapper?.outerHTML || '';
 }
 
-async function renderWrapperToHtmlAsset(wrapper, width, height, embeddedCss = '', background = '#ffffff') {
+async function renderWrapperToHtmlAsset(wrapper, width, height, embeddedCss = '', background = '#ffffff', metadata = {}) {
   return createHtmlExportAsset(
     serializeWrapperToHtml(wrapper, embeddedCss),
     width,
     height,
-    background
+    background,
+    metadata
   );
 }
 
@@ -1350,7 +1404,7 @@ async function measureDetachedWrapper(wrapper, width) {
   }
 }
 
-function createBaseWrapper(width, height, background) {
+function createBaseWrapper(width, height, background, padding = 0) {
   const wrapper = document.createElement('div');
   wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
   wrapper.style.width = `${width}px`;
@@ -1358,7 +1412,21 @@ function createBaseWrapper(width, height, background) {
   wrapper.style.boxSizing = 'border-box';
   wrapper.style.background = background;
   wrapper.style.overflow = 'hidden';
+  if (padding > 0) {
+    wrapper.style.padding = `${padding}px`;
+  }
   return wrapper;
+}
+
+function resolveExportLanguage(element) {
+  if (element instanceof Element) {
+    const nearestLangElement = element.closest('[lang]');
+    if (nearestLangElement?.getAttribute('lang')) {
+      return nearestLangElement.getAttribute('lang');
+    }
+  }
+
+  return document.documentElement.lang || 'zh-CN';
 }
 
 function resolveVisualExportElement(element) {
@@ -1387,12 +1455,16 @@ async function renderElementAsStyledSvgAsset(element) {
   }
 
   const rect = exportElement.getBoundingClientRect();
-  const width = Math.max(1, Math.ceil(rect.width));
-  const height = Math.max(1, Math.ceil(rect.height));
+  const contentWidth = Math.max(1, Math.ceil(rect.width));
+  const contentHeight = Math.max(1, Math.ceil(rect.height));
+  const width = contentWidth + SINGLE_EXPORT_PADDING * 2;
+  const height = contentHeight + SINGLE_EXPORT_PADDING * 2;
   const background = resolveExportBackground();
+  const language = resolveExportLanguage(exportElement);
   const embeddedFontCss = await buildEmbeddedExportCss(exportElement);
   const clone = await createStyledClone(exportElement);
-  const wrapper = createBaseWrapper(width, height, background);
+  const wrapper = createBaseWrapper(width, height, background, SINGLE_EXPORT_PADDING);
+  wrapper.setAttribute('lang', language);
   wrapper.appendChild(clone);
 
   return renderWrapperToSvgAsset(wrapper, width, height, embeddedFontCss);
@@ -1405,15 +1477,21 @@ async function renderElementAsStyledHtmlAsset(element) {
   }
 
   const rect = exportElement.getBoundingClientRect();
-  const width = Math.max(1, Math.ceil(rect.width));
-  const height = Math.max(1, Math.ceil(rect.height));
+  const contentWidth = Math.max(1, Math.ceil(rect.width));
+  const contentHeight = Math.max(1, Math.ceil(rect.height));
+  const width = contentWidth + SINGLE_EXPORT_PADDING * 2;
+  const height = contentHeight + SINGLE_EXPORT_PADDING * 2;
   const background = resolveExportBackground();
+  const language = resolveExportLanguage(exportElement);
   const embeddedFontCss = await buildEmbeddedExportCss(exportElement);
   const clone = await createStyledClone(exportElement);
-  const wrapper = createBaseWrapper(width, height, background);
+  const wrapper = createBaseWrapper(width, height, background, SINGLE_EXPORT_PADDING);
+  wrapper.setAttribute('lang', language);
   wrapper.appendChild(clone);
 
-  return renderWrapperToHtmlAsset(wrapper, width, height, embeddedFontCss, background);
+  return renderWrapperToHtmlAsset(wrapper, width, height, embeddedFontCss, background, {
+    preserveTypography: true
+  });
 }
 
 function getVisibleConversationSections() {
@@ -1464,6 +1542,7 @@ async function renderConversationSectionsAsStyledSvgAssets() {
 
   const sectionGroups = splitConversationSections(exportSections);
   const background = resolveExportBackground();
+  const language = resolveExportLanguage(exportSections[0]);
   const maxWidth = Math.max(...exportSections.map(section => Math.ceil(section.getBoundingClientRect().width)));
   const outputWidth = maxWidth + EXPORT_PADDING * 2;
   const embeddedFontCss = await buildEmbeddedExportCss(exportSections);
@@ -1472,6 +1551,7 @@ async function renderConversationSectionsAsStyledSvgAssets() {
   for (const group of sectionGroups) {
     const wrapper = document.createElement('div');
     wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    wrapper.setAttribute('lang', language);
     wrapper.style.width = `${outputWidth}px`;
     wrapper.style.boxSizing = 'border-box';
     wrapper.style.padding = `${EXPORT_PADDING}px`;
@@ -1502,6 +1582,7 @@ async function renderConversationSectionsAsStyledHtmlAssets() {
 
   const sectionGroups = splitConversationSections(exportSections);
   const background = resolveExportBackground();
+  const language = resolveExportLanguage(exportSections[0]);
   const maxWidth = Math.max(...exportSections.map(section => Math.ceil(section.getBoundingClientRect().width)));
   const outputWidth = maxWidth + EXPORT_PADDING * 2;
   const embeddedFontCss = await buildEmbeddedExportCss(exportSections);
@@ -1510,6 +1591,7 @@ async function renderConversationSectionsAsStyledHtmlAssets() {
   for (const group of sectionGroups) {
     const wrapper = document.createElement('div');
     wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    wrapper.setAttribute('lang', language);
     wrapper.style.width = `${outputWidth}px`;
     wrapper.style.boxSizing = 'border-box';
     wrapper.style.padding = `${EXPORT_PADDING}px`;
@@ -1525,7 +1607,11 @@ async function renderConversationSectionsAsStyledHtmlAssets() {
     }
     outputHeight += Math.max(0, group.length - 1) * EXPORT_GAP;
 
-    assets.push(await renderWrapperToHtmlAsset(wrapper, outputWidth, outputHeight, embeddedFontCss, background));
+    assets.push(
+      await renderWrapperToHtmlAsset(wrapper, outputWidth, outputHeight, embeddedFontCss, background, {
+        preserveTypography: true
+      })
+    );
   }
 
   return assets;
