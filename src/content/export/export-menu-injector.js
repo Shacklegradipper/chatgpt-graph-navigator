@@ -30,11 +30,15 @@ function getLabels() {
       imageCurrentOnly: '\u56fe\u50cf\u5bfc\u51fa\u4ec5\u652f\u6301\u5f53\u524d\u9875\u9762\u5df2\u6253\u5f00\u7684\u5bf9\u8bdd\u3002',
       json: 'JSON',
       markdown: 'Markdown',
+      pdf: 'PDF',
+      word: 'Word',
       both: 'JSON + Markdown',
       svg: 'SVG',
       png: 'PNG',
       jsonDesc: '\u5bfc\u51fa\u539f\u59cb\u7ed3\u6784\u5316\u6570\u636e',
       markdownDesc: '\u5bfc\u51fa\u53ef\u8bfb Markdown',
+      pdfDesc: '\u5c06 Markdown \u6e32\u67d3\u4e3a PDF',
+      wordDesc: '\u5c06 Markdown \u8f6c\u6362\u4e3a Word \u6587\u6863',
       bothDesc: '\u540c\u65f6\u5bfc\u51fa JSON \u548c Markdown',
       svgDesc: '\u5bfc\u51fa\u81ea\u5305\u542b SVG\uff0c\u5c3d\u91cf\u4fdd\u7559\u9875\u9762\u6837\u5f0f',
       pngDesc: '\u5c06\u91cd\u5efa\u540e\u7684\u5185\u5bb9\u6e32\u67d3\u4e3a PNG\uff0c\u4e0d\u4f7f\u7528\u622a\u56fe',
@@ -56,11 +60,15 @@ function getLabels() {
     imageCurrentOnly: 'Visual export is only available for the conversation currently open on the page.',
     json: 'JSON',
     markdown: 'Markdown',
+    pdf: 'PDF',
+    word: 'Word',
     both: 'JSON + Markdown',
     svg: 'SVG',
     png: 'PNG',
     jsonDesc: 'Export the raw structured data',
     markdownDesc: 'Export readable Markdown',
+    pdfDesc: 'Render Markdown as a PDF document',
+    wordDesc: 'Convert Markdown to a Word document',
     bothDesc: 'Export JSON and Markdown together',
     svgDesc: 'Export a self-contained SVG styled like the page',
     pngDesc: 'Render the reconstructed content to PNG without screenshots',
@@ -465,6 +473,14 @@ function openExportDialog(context) {
         <button class="cg-export-option" type="button" data-format="md">
           <span class="cg-export-option-title">${labels.markdown}</span>
           <span class="cg-export-option-desc">${labels.markdownDesc}</span>
+        </button>
+        <button class="cg-export-option" type="button" data-format="pdf">
+          <span class="cg-export-option-title">${labels.pdf}</span>
+          <span class="cg-export-option-desc">${labels.pdfDesc}</span>
+        </button>
+        <button class="cg-export-option" type="button" data-format="word">
+          <span class="cg-export-option-title">${labels.word}</span>
+          <span class="cg-export-option-desc">${labels.wordDesc}</span>
         </button>
         <button class="cg-export-option" type="button" data-format="both">
           <span class="cg-export-option-title">${labels.both}</span>

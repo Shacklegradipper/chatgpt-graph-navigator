@@ -579,6 +579,12 @@
   "customBackupPageTitle": {
     "message": "Custom Backup"
   },
+  "backupManagerBackupsTab": {
+    "message": "Backups"
+  },
+  "backupManagerCustomTab": {
+    "message": "Custom Backup"
+  },
   "backupManagerSearchPlaceholder": {
     "message": "Search by title or content..."
   },
@@ -635,6 +641,12 @@
   },
   "backupManagerExportMd": {
     "message": "Export MD"
+  },
+  "backupManagerExportPdf": {
+    "message": "Export PDF"
+  },
+  "backupManagerExportWord": {
+    "message": "Export Word"
   },
   "backupManagerExportBoth": {
     "message": "Export Both"

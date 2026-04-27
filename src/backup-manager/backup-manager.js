@@ -7,19 +7,22 @@ import { MESSAGE_TYPES } from '../shared/constants.js';
 import { exportAsZip } from './export-utils.js';
 
 const BATCH_SIZE = 50;
-const PAGE_MODE = new URLSearchParams(window.location.search).get('mode') === 'custom'
+const INITIAL_PAGE_MODE = new URLSearchParams(window.location.search).get('mode') === 'custom'
   ? 'custom'
   : 'manage';
 
 let allItems = [];
 let filteredItems = [];
 let selectedIds = new Set();
-let sortColumn = PAGE_MODE === 'custom' ? 'update_time' : 'backup_time';
+let pageMode = INITIAL_PAGE_MODE;
+let sortColumn = INITIAL_PAGE_MODE === 'custom' ? 'update_time' : 'backup_time';
 let sortDirection = 'desc';
 let workspaceStates = {};
 let backupProgressActive = false;
 
 let pageTitleEl;
+let backupsViewBtn;
+let customViewBtn;
 let foldersContainer;
 let emptyState;
 let actionBar;
@@ -37,6 +40,8 @@ let headerStatsEl;
 let backupSelectedBtn;
 let exportJsonBtn;
 let exportMdBtn;
+let exportPdfBtn;
+let exportWordBtn;
 let exportBothBtn;
 let deleteBtn;
 let dateFormatterLocale = '';
@@ -126,7 +131,7 @@ function hideLoading() {
 }
 
 function isCustomMode() {
-  return PAGE_MODE === 'custom';
+  return pageMode === 'custom';
 }
 
 function getSearchablePreview(item) {
@@ -233,6 +238,47 @@ function updatePageMeta() {
   }
 
   updateEmptyStateText();
+}
+
+function updateModeSwitcher() {
+  const custom = isCustomMode();
+  if (backupsViewBtn) {
+    backupsViewBtn.classList.toggle('active', !custom);
+    backupsViewBtn.setAttribute('aria-selected', custom ? 'false' : 'true');
+  }
+  if (customViewBtn) {
+    customViewBtn.classList.toggle('active', custom);
+    customViewBtn.setAttribute('aria-selected', custom ? 'true' : 'false');
+  }
+}
+
+async function switchMode(nextMode) {
+  if (nextMode !== 'manage' && nextMode !== 'custom') return;
+  if (nextMode === pageMode) return;
+
+  pageMode = nextMode;
+  allItems = [];
+  filteredItems = [];
+  selectedIds.clear();
+  workspaceStates = {};
+  sortColumn = isCustomMode() ? 'update_time' : 'backup_time';
+  sortDirection = 'desc';
+  backupProgressActive = false;
+
+  const url = new URL(window.location.href);
+  if (isCustomMode()) {
+    url.searchParams.set('mode', 'custom');
+  } else {
+    url.searchParams.delete('mode');
+  }
+  window.history.replaceState({}, '', url.toString());
+
+  updatePageMeta();
+  updateModeSwitcher();
+  updateDateInputsVisibility();
+  updateModeSpecificActions();
+  updateActionBar();
+  await loadItems();
 }
 
 async function loadItems() {
@@ -601,6 +647,8 @@ function updateModeSpecificActions() {
   backupSelectedBtn.style.display = custom ? '' : 'none';
   exportJsonBtn.style.display = custom ? 'none' : '';
   exportMdBtn.style.display = custom ? 'none' : '';
+  exportPdfBtn.style.display = custom ? 'none' : '';
+  exportWordBtn.style.display = custom ? 'none' : '';
   exportBothBtn.style.display = custom ? 'none' : '';
   deleteBtn.style.display = custom ? 'none' : '';
   deleteBtn.classList.toggle('danger', !custom);
@@ -726,6 +774,8 @@ function handleBackupProgress(message) {
 }
 
 function bindEvents() {
+  backupsViewBtn.addEventListener('click', () => switchMode('manage'));
+  customViewBtn.addEventListener('click', () => switchMode('custom'));
   searchInput.addEventListener('input', debounce(() => applyFilters(), 250));
   dateModeSelect.addEventListener('change', () => {
     updateDateInputsVisibility();
@@ -739,6 +789,8 @@ function bindEvents() {
   backupSelectedBtn.addEventListener('click', () => startSelectedBackup());
   exportJsonBtn.addEventListener('click', () => exportSelected('json'));
   exportMdBtn.addEventListener('click', () => exportSelected('md'));
+  exportPdfBtn.addEventListener('click', () => exportSelected('pdf'));
+  exportWordBtn.addEventListener('click', () => exportSelected('word'));
   exportBothBtn.addEventListener('click', () => exportSelected('both'));
   deleteBtn.addEventListener('click', () => deleteSelected());
 
@@ -748,6 +800,8 @@ function bindEvents() {
 document.addEventListener('DOMContentLoaded', async () => {
   await initI18n();
   pageTitleEl = document.getElementById('page-title');
+  backupsViewBtn = document.getElementById('backups-view-btn');
+  customViewBtn = document.getElementById('custom-view-btn');
   foldersContainer = document.getElementById('folders-container');
   emptyState = document.getElementById('empty-state');
   actionBar = document.getElementById('action-bar');
@@ -765,10 +819,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   backupSelectedBtn = document.getElementById('backup-selected-btn');
   exportJsonBtn = document.getElementById('export-json-btn');
   exportMdBtn = document.getElementById('export-md-btn');
+  exportPdfBtn = document.getElementById('export-pdf-btn');
+  exportWordBtn = document.getElementById('export-word-btn');
   exportBothBtn = document.getElementById('export-both-btn');
   deleteBtn = document.getElementById('delete-btn');
 
   updatePageMeta();
+  updateModeSwitcher();
   updateDateInputsVisibility();
   updateModeSpecificActions();
   bindEvents();

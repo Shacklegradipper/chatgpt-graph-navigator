@@ -579,6 +579,12 @@
   "customBackupPageTitle": {
     "message": "自定义备份"
   },
+  "backupManagerBackupsTab": {
+    "message": "备份列表"
+  },
+  "backupManagerCustomTab": {
+    "message": "自定义备份"
+  },
   "backupManagerSearchPlaceholder": {
     "message": "按标题或内容搜索..."
   },
@@ -635,6 +641,12 @@
   },
   "backupManagerExportMd": {
     "message": "导出 MD"
+  },
+  "backupManagerExportPdf": {
+    "message": "导出 PDF"
+  },
+  "backupManagerExportWord": {
+    "message": "导出 Word"
   },
   "backupManagerExportBoth": {
     "message": "同时导出"

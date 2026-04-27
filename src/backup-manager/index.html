@@ -127,6 +127,33 @@
       color: var(--color-text-secondary);
     }
 
+    .view-switch {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px;
+      margin-bottom: 18px;
+      border: 1px solid var(--color-border);
+      border-radius: 10px;
+      background: var(--color-surface);
+    }
+
+    .view-switch-btn {
+      border: 0;
+      border-radius: 7px;
+      padding: 8px 14px;
+      background: transparent;
+      color: var(--color-text-secondary);
+      font-family: var(--font-body);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .view-switch-btn.active {
+      background: var(--color-accent);
+      color: #ffffff;
+    }
+
     /* Toolbar */
     .toolbar {
       display: flex;
@@ -231,6 +258,7 @@
       color: white;
       border-radius: 10px;
       animation: slideDown 0.2s var(--ease-out-expo);
+      flex-wrap: wrap;
     }
 
     .action-bar.visible {
@@ -577,6 +605,27 @@
       <div class="header-stats" id="header-stats"></div>
     </header>
 
+    <div class="view-switch" role="tablist">
+      <button
+        class="view-switch-btn active"
+        id="backups-view-btn"
+        type="button"
+        role="tab"
+        aria-selected="true"
+        data-mode="manage"
+        data-i18n="backupManagerBackupsTab"
+      >Backups</button>
+      <button
+        class="view-switch-btn"
+        id="custom-view-btn"
+        type="button"
+        role="tab"
+        aria-selected="false"
+        data-mode="custom"
+        data-i18n="backupManagerCustomTab"
+      >Custom Backup</button>
+    </div>
+
     <div class="toolbar">
       <input
         type="text"
@@ -611,6 +660,8 @@
       <button class="action-btn" id="backup-selected-btn" data-i18n="backupManagerBackupSelected">Backup Selected</button>
       <button class="action-btn" id="export-json-btn" data-i18n="backupManagerExportJson">Export JSON</button>
       <button class="action-btn" id="export-md-btn" data-i18n="backupManagerExportMd">Export MD</button>
+      <button class="action-btn" id="export-pdf-btn" data-i18n="backupManagerExportPdf">Export PDF</button>
+      <button class="action-btn" id="export-word-btn" data-i18n="backupManagerExportWord">Export Word</button>
       <button class="action-btn" id="export-both-btn" data-i18n="backupManagerExportBoth">Export Both</button>
       <button class="action-btn danger" id="delete-btn" data-i18n="backupManagerDelete">Delete</button>
     </div>

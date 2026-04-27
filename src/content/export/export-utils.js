@@ -1,5 +1,10 @@
 import JSZip from 'jszip';
-import { convertToMarkdown, downloadBlob } from '../../backup-manager/export-utils.js';
+import {
+  convertToMarkdown,
+  createPdfBlobFromMarkdown,
+  createWordBlobFromMarkdown,
+  downloadBlob
+} from '../../backup-manager/export-utils.js';
 import { MESSAGE_TYPES } from '../../shared/constants.js';
 import { extractConversationId } from '../../shared/utils.js';
 import { fetchConversationWithRetry } from '../api/conversation.js';
@@ -3160,6 +3165,26 @@ async function exportConversationFiles(rawData, conversationId, format) {
     return;
   }
 
+  if (normalizedFormat === 'pdf') {
+    const markdown = convertToMarkdown(rawData);
+    const pdfBlob = await createPdfBlobFromMarkdown(markdown, {
+      title: rawData?.title || 'Untitled',
+      subtitle: buildConversationSubtitle(rawData)
+    });
+    downloadBlob(pdfBlob, `${baseName}.pdf`);
+    return;
+  }
+
+  if (normalizedFormat === 'word') {
+    const markdown = convertToMarkdown(rawData);
+    const wordBlob = await createWordBlobFromMarkdown(markdown, {
+      title: rawData?.title || 'Untitled',
+      subtitle: buildConversationSubtitle(rawData)
+    });
+    downloadBlob(wordBlob, `${baseName}.docx`);
+    return;
+  }
+
   if (normalizedFormat === 'both') {
     await downloadZip(
       [
@@ -3206,6 +3231,26 @@ async function exportMessageFiles(rawData, messageId, format) {
       createTextBlob(convertMessageToMarkdown(record), 'text/markdown;charset=utf-8'),
       `${baseName}.md`
     );
+    return;
+  }
+
+  if (normalizedFormat === 'pdf') {
+    const markdown = convertMessageToMarkdown(record);
+    const pdfBlob = await createPdfBlobFromMarkdown(markdown, {
+      title: record.conversation_title || 'Untitled',
+      subtitle: buildMessageSubtitle(record)
+    });
+    downloadBlob(pdfBlob, `${baseName}.pdf`);
+    return;
+  }
+
+  if (normalizedFormat === 'word') {
+    const markdown = convertMessageToMarkdown(record);
+    const wordBlob = await createWordBlobFromMarkdown(markdown, {
+      title: record.conversation_title || 'Untitled',
+      subtitle: buildMessageSubtitle(record)
+    });
+    downloadBlob(wordBlob, `${baseName}.docx`);
     return;
   }
 
