@@ -27,6 +27,8 @@ const FILES_TO_INCLUDE = [
   'src/popup/index.html',
   'src/sidepanel/index.html',
   'src/setup/index.html',
+  'src/backup-manager/index.html',
+  'src/export-renderer/index.html',
   'assets',
   '_locales',
 ];
