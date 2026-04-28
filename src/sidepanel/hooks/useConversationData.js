@@ -11,12 +11,32 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MESSAGE_TYPES } from '../../shared/constants';
+import {
+  ASSISTANT_STREAM_OUTPUT_MODES,
+  DEFAULT_ASSISTANT_STREAM_SETTINGS,
+  MESSAGE_TYPES,
+  STORAGE_KEYS
+} from '../../shared/constants';
 import { sendMessageToTabWithFallback } from '../../shared/tab-messaging.js';
 import { buildRounds as buildRoundsFromParsedNodes } from '../../content/parser/branch-extractor.js';
+import { normalizeAssistantStreamNodes } from '../../content/parser/assistant-stream-normalizer.js';
 
 // 与 shared/utils.js 中 extractConversationId 保持一致
 const CONVERSATION_ID_REGEX = /\/c\/([a-f0-9-]+)/;
+
+async function getAssistantStreamMode() {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.ASSISTANT_STREAM_SETTINGS);
+    const mode = result[STORAGE_KEYS.ASSISTANT_STREAM_SETTINGS]?.mode;
+    if (Object.values(ASSISTANT_STREAM_OUTPUT_MODES).includes(mode)) {
+      return mode;
+    }
+  } catch (e) {
+    console.warn('[Hook] Failed to load assistant stream settings:', e?.message);
+  }
+
+  return DEFAULT_ASSISTANT_STREAM_SETTINGS.mode;
+}
 
 /**
  * 带重试的消息发送
@@ -79,12 +99,17 @@ async function getActiveConversationIdFromTab() {
  *
  * background.GET_CONVERSATION 返回：{ conversation, nodes, edges, rounds }
  */
-function transformToGraphData(payload) {
+function transformToGraphData(payload, assistantStreamMode = DEFAULT_ASSISTANT_STREAM_SETTINGS.mode) {
   if (!payload) return null;
 
   const conversation = payload.conversation || payload;
-  const nodes = payload.nodes || conversation.nodes || [];
-  const edges = payload.edges || conversation.edges || [];
+  const rawNodes = payload.nodes || conversation.nodes || [];
+  const normalized = normalizeAssistantStreamNodes(rawNodes, {
+    mode: assistantStreamMode,
+    conversationId: conversation.id
+  });
+  const nodes = normalized.nodes;
+  const edges = rawNodes.length > 0 ? normalized.edges : (payload.edges || conversation.edges || []);
   const roundsFromDB = payload.rounds || conversation.rounds || [];
 
   // ✅ 强制用 nodes 重建 rounds：
@@ -188,11 +213,16 @@ export function useConversationData() {
       }, 3, 500);
 
       if (response?.success) {
-        const graphData = transformToGraphData(response.data);
+        const assistantStreamMode = await getAssistantStreamMode();
+        const graphData = transformToGraphData(response.data, assistantStreamMode);
         setConversationData(graphData);
         setActiveConversationId(conversationId);
         // 成功获取数据，清除 pending 状态
         pendingContentRefreshRef.current.delete(conversationId);
+
+        if (!skipContentTrigger) {
+          triggerContentRefresh(conversationId);
+        }
       } else {
         // DB 中没有数据，触发 content script 去抓取
         // DATA_READY 消息会在抓取完成后触发重新 fetch
@@ -322,6 +352,24 @@ export function useConversationData() {
       runtimeListenerSetRef.current = false;
     };
   }, [activeConversationId, fetchConversation, syncWithActiveTab]);
+
+  useEffect(() => {
+    const handleStorageChange = (changes, areaName) => {
+      if (areaName !== 'local' || !changes[STORAGE_KEYS.ASSISTANT_STREAM_SETTINGS]) {
+        return;
+      }
+
+      if (activeConversationId) {
+        fetchConversation(activeConversationId, true);
+        triggerContentRefresh(activeConversationId);
+      }
+    };
+
+    chrome.storage?.onChanged?.addListener(handleStorageChange);
+    return () => {
+      chrome.storage?.onChanged?.removeListener(handleStorageChange);
+    };
+  }, [activeConversationId, fetchConversation, triggerContentRefresh]);
 
   /**
    * 监听 tab 切换/URL 更新（sidepanel 需要跟随用户当前看的对话）

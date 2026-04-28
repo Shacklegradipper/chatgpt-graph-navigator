@@ -43,7 +43,8 @@ export const MESSAGE_TYPES = {
 
   // Popup / Floating UI
   TOGGLE_FLOATING_PANEL: 'TOGGLE_FLOATING_PANEL',
-  UPDATE_FLOATING_PANEL_STATE: 'UPDATE_FLOATING_PANEL_STATE'
+  UPDATE_FLOATING_PANEL_STATE: 'UPDATE_FLOATING_PANEL_STATE',
+  ASSISTANT_STREAM_SETTINGS_CHANGED: 'ASSISTANT_STREAM_SETTINGS_CHANGED'
 };
 
 // 节点角色
@@ -64,7 +65,18 @@ export const STORAGE_KEYS = {
   // Debug log enabled (default: false)
   DEBUG_LOG_ENABLED: 'chatgpt_graph_debug_log_enabled',
   // Debug log levels (default: all enabled when debug is on)
-  DEBUG_LOG_LEVELS: 'chatgpt_graph_debug_log_levels'
+  DEBUG_LOG_LEVELS: 'chatgpt_graph_debug_log_levels',
+  // How streamed / thinking assistant output should be represented in the graph.
+  ASSISTANT_STREAM_SETTINGS: 'chatgpt_graph_assistant_stream_settings'
+};
+
+export const ASSISTANT_STREAM_OUTPUT_MODES = {
+  MERGE_ALL: 'merge_all',
+  FINAL_ONLY: 'final_only'
+};
+
+export const DEFAULT_ASSISTANT_STREAM_SETTINGS = {
+  mode: ASSISTANT_STREAM_OUTPUT_MODES.FINAL_ONLY
 };
 
 // 内容折叠默认设置

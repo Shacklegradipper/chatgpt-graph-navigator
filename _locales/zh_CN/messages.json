@@ -426,6 +426,27 @@
   "openFloatingBtn": {
     "message": "打开悬浮窗"
   },
+  "popupSettingsButtonTitle": {
+    "message": "设置"
+  },
+  "assistantStreamSettingsTitle": {
+    "message": "回答分段处理"
+  },
+  "assistantStreamSettingsDescription": {
+    "message": "选择 ChatGPT 在思考或生成过程中出现多个回答分段时，图谱应该如何处理。"
+  },
+  "assistantStreamFinalOnlyLabel": {
+    "message": "仅保留最终完整回答"
+  },
+  "assistantStreamFinalOnlyDescription": {
+    "message": "用最后完成的回答替换中间分段，图谱中只保留一个节点。"
+  },
+  "assistantStreamMergeAllLabel": {
+    "message": "合并所有流式分段"
+  },
+  "assistantStreamMergeAllDescription": {
+    "message": "保留生成过程中出现的所有可见分段，但合并为一个图谱节点。"
+  },
 
   "waitingForToken": {
     "message": "等待获取令牌..."

@@ -4,7 +4,13 @@
  */
 
 import { log } from '../../shared/utils.js';
+import {
+  ASSISTANT_STREAM_OUTPUT_MODES,
+  DEFAULT_ASSISTANT_STREAM_SETTINGS,
+  NODE_ROLES
+} from '../../shared/constants.js';
 import { parseMapping, getNodeStatistics } from '../parser/mapping-parser.js';
+import { normalizeAssistantStreamNodes } from '../parser/assistant-stream-normalizer.js';
 import { extractBranches, buildRounds, analyzeBranchStructure } from '../parser/branch-extractor.js';
 
 /**
@@ -25,6 +31,21 @@ class ConversationState {
     this.lastUpdateTime = null;
     this.incrementalCount = 0;   // 增量节点计数
     this.isInitialized = false;
+    this.assistantStreamSettings = { ...DEFAULT_ASSISTANT_STREAM_SETTINGS };
+  }
+
+  setAssistantStreamSettings(settings = {}) {
+    const nextMode = settings.mode;
+    const validModes = Object.values(ASSISTANT_STREAM_OUTPUT_MODES);
+    this.assistantStreamSettings = {
+      ...DEFAULT_ASSISTANT_STREAM_SETTINGS,
+      ...settings,
+      mode: validModes.includes(nextMode)
+        ? nextMode
+        : DEFAULT_ASSISTANT_STREAM_SETTINGS.mode
+    };
+
+    log('info', 'State', 'Assistant stream settings updated', this.assistantStreamSettings);
   }
 
   /**
@@ -58,12 +79,12 @@ class ConversationState {
   /**
    * 添加增量节点
    * @param {Object} messageData - 从 DOM 提取的消息数据
-   * @returns {boolean} 是否成功添加
+   * @returns {{changed: boolean, nodeId: string|null, action: string}} 更新结果
    */
   addIncrementalNode(messageData) {
     if (!this.isInitialized) {
       log('warn', 'State', 'Cannot add incremental node: state not initialized');
-      return false;
+      return { changed: false, nodeId: null, action: 'not_initialized' };
     }
 
     const nodeId = messageData.id;
@@ -71,17 +92,50 @@ class ConversationState {
     // 检查是否已存在
     if (this.mapping[nodeId]) {
       log('debug', 'State', `Node ${nodeId} already exists, skipping`);
-      return false;
+      return { changed: false, nodeId, action: 'already_exists' };
+    }
+
+    if (messageData.role === NODE_ROLES.ASSISTANT && !(messageData.content || '').trim()) {
+      log('debug', 'State', `Assistant node ${nodeId} has no content, skipping`);
+      return { changed: false, nodeId, action: 'empty_assistant' };
     }
 
     log('info', 'State', 'Adding incremental node', {
       id: nodeId,
       role: messageData.role,
-      contentLength: messageData.content?.length || 0
+      contentLength: messageData.content?.length || 0,
+      streamGroupKey: messageData.streamGroupKey || null
     });
 
-    // 构建 mapping 节点（模拟 API 格式）
-    this.mapping[nodeId] = {
+    const mappingNode = this.createIncrementalMappingNode(messageData);
+    const result = messageData.role === NODE_ROLES.ASSISTANT
+      ? this.upsertAssistantIncrementalNode(messageData, mappingNode)
+      : this.insertMappingNode(mappingNode);
+
+    if (!result.changed) {
+      return result;
+    }
+
+    // 重新解析整个 mapping
+    this.reparse();
+
+    this.incrementalCount++;
+    this.lastUpdateTime = Date.now();
+
+    log('info', 'State', 'Incremental node processed successfully', {
+      action: result.action,
+      nodeId: result.nodeId,
+      totalNodes: this.nodes.length,
+      incrementalCount: this.incrementalCount
+    });
+
+    return result;
+  }
+
+  createIncrementalMappingNode(messageData) {
+    const nodeId = messageData.id;
+
+    return {
       id: nodeId,
       message: {
         id: nodeId,
@@ -96,34 +150,207 @@ class ConversationState {
         metadata: {
           is_incremental: true,
           source: 'dom',
-          timestamp: messageData.timestamp
+          timestamp: messageData.timestamp,
+          turn_number: messageData.turnNumber ?? null,
+          stream_group_key: messageData.streamGroupKey || null,
+          stream_group_part_index: messageData.streamGroupPartIndex ?? null,
+          stream_group_part_count: messageData.streamGroupPartCount ?? null,
+          stream_part_ids: [nodeId]
         }
       },
       parent: messageData.parent,
       children: []
     };
+  }
 
-    // 更新父节点的 children 数组
-    if (messageData.parent && this.mapping[messageData.parent]) {
-      const parentChildren = this.mapping[messageData.parent].children;
-      if (!parentChildren.includes(nodeId)) {
-        parentChildren.push(nodeId);
-        log('debug', 'State', `Updated parent ${messageData.parent} children`);
-      }
+  insertMappingNode(mappingNode) {
+    this.mapping[mappingNode.id] = mappingNode;
+    this.attachToParent(mappingNode.id, mappingNode.parent);
+
+    return {
+      changed: true,
+      nodeId: mappingNode.id,
+      action: 'added'
+    };
+  }
+
+  upsertAssistantIncrementalNode(messageData, mappingNode) {
+    if (this.assistantStreamSettings.mode === ASSISTANT_STREAM_OUTPUT_MODES.MERGE_ALL) {
+      return this.mergeAssistantStreamGroup(messageData, mappingNode);
     }
 
-    // 重新解析整个 mapping
-    this.reparse();
+    return this.replaceAssistantStreamGroupWithFinalPart(messageData, mappingNode);
+  }
 
-    this.incrementalCount++;
-    this.lastUpdateTime = Date.now();
+  replaceAssistantStreamGroupWithFinalPart(messageData, mappingNode) {
+    const groupNodes = this.findAssistantStreamGroupNodes(messageData);
 
-    log('info', 'State', 'Incremental node added successfully', {
-      totalNodes: this.nodes.length,
-      incrementalCount: this.incrementalCount
+    if (groupNodes.length === 0) {
+      return this.insertMappingNode(mappingNode);
+    }
+
+    const incomingIndex = this.getStreamPartIndex(mappingNode);
+    const latestExisting = groupNodes.reduce((best, node) => {
+      const nodeIndex = this.getStreamPartIndex(node);
+      if (nodeIndex > best.index) {
+        return { node, index: nodeIndex };
+      }
+      if (nodeIndex === best.index && this.getNodeTimestamp(node) > this.getNodeTimestamp(best.node)) {
+        return { node, index: nodeIndex };
+      }
+      return best;
+    }, { node: groupNodes[0], index: this.getStreamPartIndex(groupNodes[0]) });
+
+    if (incomingIndex < latestExisting.index) {
+      log('debug', 'State', 'Skipping older streamed assistant part', {
+        incomingId: mappingNode.id,
+        existingId: latestExisting.node.id,
+        incomingIndex,
+        existingIndex: latestExisting.index
+      });
+
+      return {
+        changed: false,
+        nodeId: latestExisting.node.id,
+        action: 'skipped_older_stream_part'
+      };
+    }
+
+    groupNodes.forEach(node => this.removeMappingNode(node.id));
+    this.insertMappingNode(mappingNode);
+
+    return {
+      changed: true,
+      nodeId: mappingNode.id,
+      action: 'replaced_stream_group'
+    };
+  }
+
+  mergeAssistantStreamGroup(messageData, mappingNode) {
+    const groupNodes = this.findAssistantStreamGroupNodes(messageData);
+
+    if (groupNodes.length === 0) {
+      return this.insertMappingNode(mappingNode);
+    }
+
+    const allNodes = [...groupNodes, mappingNode];
+    const sortedNodes = [...allNodes].sort((a, b) => {
+      const partDiff = this.getStreamPartIndex(a) - this.getStreamPartIndex(b);
+      if (partDiff !== 0) return partDiff;
+      return this.getNodeTimestamp(a) - this.getNodeTimestamp(b);
     });
+    const primaryNode = sortedNodes[0];
+    const mergedContent = this.mergeAssistantStreamContent(sortedNodes);
+    const streamPartIds = [...new Set(sortedNodes.map(node => node.id))];
 
-    return true;
+    groupNodes
+      .filter(node => node.id !== primaryNode.id)
+      .forEach(node => this.removeMappingNode(node.id));
+
+    if (primaryNode.id === mappingNode.id) {
+      mappingNode.message.content.parts = [mergedContent];
+      mappingNode.message.metadata.stream_part_ids = streamPartIds;
+      this.insertMappingNode(mappingNode);
+    } else {
+      const existingNode = this.mapping[primaryNode.id];
+      if (!existingNode) {
+        return this.insertMappingNode(mappingNode);
+      }
+
+      existingNode.message.content.parts = [mergedContent];
+      existingNode.message.metadata = {
+        ...existingNode.message.metadata,
+        timestamp: messageData.timestamp,
+        stream_part_ids: streamPartIds,
+        stream_group_part_count: Math.max(
+          existingNode.message.metadata?.stream_group_part_count || 0,
+          messageData.streamGroupPartCount || 0,
+          streamPartIds.length
+        )
+      };
+    }
+
+    return {
+      changed: true,
+      nodeId: primaryNode.id,
+      action: 'merged_stream_group'
+    };
+  }
+
+  mergeAssistantStreamContent(nodes) {
+    return nodes.reduce((merged, node) => {
+      const text = this.getNodeContent(node).trim();
+      if (!text) return merged;
+      if (!merged) return text;
+      if (merged.includes(text)) return merged;
+      if (text.includes(merged)) return text;
+      return `${merged}\n\n${text}`;
+    }, '');
+  }
+
+  findAssistantStreamGroupNodes(messageData) {
+    return Object.values(this.mapping).filter(node => (
+      this.isIncrementalAssistantNode(node) &&
+      this.isSameAssistantStreamGroup(node, messageData)
+    ));
+  }
+
+  isIncrementalAssistantNode(node) {
+    return node?.message?.author?.role === NODE_ROLES.ASSISTANT &&
+      node.message.metadata?.is_incremental === true;
+  }
+
+  isSameAssistantStreamGroup(node, messageData) {
+    const metadata = node.message?.metadata || {};
+    const existingGroupKey = metadata.stream_group_key;
+    const incomingGroupKey = messageData.streamGroupKey;
+
+    if (existingGroupKey || incomingGroupKey) {
+      return existingGroupKey === incomingGroupKey;
+    }
+
+    return (node.parent || null) === (messageData.parent || null);
+  }
+
+  getNodeContent(node) {
+    const parts = node?.message?.content?.parts;
+    if (Array.isArray(parts)) {
+      return parts.filter(part => typeof part === 'string').join('\n');
+    }
+
+    return '';
+  }
+
+  getStreamPartIndex(node) {
+    const index = Number(node?.message?.metadata?.stream_group_part_index);
+    return Number.isFinite(index) ? index : Number.MAX_SAFE_INTEGER;
+  }
+
+  getNodeTimestamp(node) {
+    const timestamp = Number(node?.message?.metadata?.timestamp);
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  }
+
+  attachToParent(nodeId, parentId) {
+    if (parentId && this.mapping[parentId]) {
+      const parentChildren = this.mapping[parentId].children;
+      if (!parentChildren.includes(nodeId)) {
+        parentChildren.push(nodeId);
+        log('debug', 'State', `Updated parent ${parentId} children`);
+      }
+    }
+  }
+
+  removeMappingNode(nodeId) {
+    const node = this.mapping[nodeId];
+    if (!node) return;
+
+    if (node.parent && this.mapping[node.parent]) {
+      this.mapping[node.parent].children = (this.mapping[node.parent].children || [])
+        .filter(childId => childId !== nodeId);
+    }
+
+    delete this.mapping[nodeId];
   }
 
   /**
@@ -134,8 +361,12 @@ class ConversationState {
     try {
       // 重新解析 nodes 和 edges
       const { nodes, edges } = parseMapping(this.mapping, this.conversationId);
-      this.nodes = nodes;
-      this.edges = edges;
+      const normalized = normalizeAssistantStreamNodes(nodes, {
+        mode: this.assistantStreamSettings.mode,
+        conversationId: this.conversationId
+      });
+      this.nodes = normalized.nodes;
+      this.edges = nodes.length > 0 ? normalized.edges : edges;
 
       // 重新构建 rounds
       this.rounds = buildRounds(this.nodes);

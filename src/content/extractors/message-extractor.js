@@ -12,6 +12,71 @@ import {
   isMessageContainer
 } from '../utils/message-id-helper.js';
 
+function getRoleFromContainer(container) {
+  if (!container?.querySelector) {
+    return null;
+  }
+
+  const roleDiv = container.querySelector('[data-message-author-role]');
+  return roleDiv?.getAttribute('data-message-author-role') ||
+    container.getAttribute('data-turn') ||
+    null;
+}
+
+function findPreviousUserContainer(containers, fromIndex) {
+  for (let i = fromIndex - 1; i >= 0; i--) {
+    if (getRoleFromContainer(containers[i]) === 'user') {
+      return containers[i];
+    }
+  }
+
+  return null;
+}
+
+function getAssistantStreamGroupInfo(container, role) {
+  if (role !== 'assistant') {
+    return null;
+  }
+
+  const main = document.querySelector('main') || document;
+  const containers = getAllMessageContainers(main);
+  let index = containers.indexOf(container);
+  if (index === -1) {
+    index = containers.findIndex(candidate => candidate === container ||
+      candidate.contains(container) ||
+      container.contains(candidate)
+    );
+  }
+
+  if (index === -1) {
+    return null;
+  }
+
+  let start = index;
+  while (start > 0 && getRoleFromContainer(containers[start - 1]) === 'assistant') {
+    start--;
+  }
+
+  let end = index;
+  while (end < containers.length - 1 && getRoleFromContainer(containers[end + 1]) === 'assistant') {
+    end++;
+  }
+
+  const group = containers.slice(start, end + 1);
+  const firstMessageId = resolveMessageId(group[0]) || resolveMessageId(container);
+  const previousUser = findPreviousUserContainer(containers, start);
+  const parentUserId = previousUser ? resolveMessageId(previousUser) : null;
+  const groupPrefix = parentUserId || 'root';
+  const groupSeed = firstMessageId || resolveMessageId(container) || `dom-${start}`;
+
+  return {
+    key: `${groupPrefix}:${groupSeed}`,
+    parentUserId,
+    partIndex: Math.max(0, group.indexOf(container)),
+    partCount: group.length
+  };
+}
+
 /**
  * 从 DOM article 元素提取消息信息
  * [修正] 全面迁移到 UUID，优化内容提取选择器
@@ -95,12 +160,20 @@ export function extractMessageFromDOM(article) {
       prevElement = prevElement.previousElementSibling;
     }
 
+    const assistantStreamGroup = getAssistantStreamGroupInfo(container, role);
+    if (assistantStreamGroup?.parentUserId) {
+      parent = assistantStreamGroup.parentUserId;
+    }
+
     const messageData = {
       id: id,            // 现在是 UUID
       role: role,
       content: content,
       parent: parent,    // 指向前一个 UUID
       turnNumber: turnNumber ? parseInt(turnNumber) : null,
+      streamGroupKey: assistantStreamGroup?.key || null,
+      streamGroupPartIndex: assistantStreamGroup?.partIndex ?? null,
+      streamGroupPartCount: assistantStreamGroup?.partCount ?? null,
       timestamp: Date.now(),
       source: 'dom'
     };

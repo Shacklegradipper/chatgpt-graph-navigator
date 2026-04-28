@@ -11,11 +11,17 @@
  * 8. 增量更新 graph tree
  */
 
-import { MESSAGE_TYPES, CONFIG } from '../shared/constants.js';
+import {
+  DEFAULT_ASSISTANT_STREAM_SETTINGS,
+  MESSAGE_TYPES,
+  CONFIG,
+  STORAGE_KEYS
+} from '../shared/constants.js';
 import { log, extractConversationId, delay, initDebugLogSetting, getDebugLogEnabled } from '../shared/utils.js';
 import { loadToken, hasToken, initTokenListener } from './auth/token-manager.js';
 import { fetchConversationWithRetry } from './api/conversation.js';
 import { parseMapping, getNodeStatistics } from './parser/mapping-parser.js';
+import { normalizeAssistantStreamNodes } from './parser/assistant-stream-normalizer.js';
 import { extractBranches, buildRounds, analyzeBranchStructure } from './parser/branch-extractor.js';
 import { isConversationPage, waitForElement } from './utils/dom-helper.js';
 import { createURLObserver } from './observers/url-observer.js';
@@ -30,6 +36,27 @@ import { toggleFloatingPanel, toggleClickThrough, toggleLock } from './ui/floati
 let urlObserver = null;
 let messageObserver = null;
 const CONTENT_SCRIPT_GUARD = '__chatgptGraphContentInitialized__';
+
+async function loadAssistantStreamSettings() {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.ASSISTANT_STREAM_SETTINGS);
+    conversationState.setAssistantStreamSettings({
+      ...DEFAULT_ASSISTANT_STREAM_SETTINGS,
+      ...(result[STORAGE_KEYS.ASSISTANT_STREAM_SETTINGS] || {})
+    });
+  } catch (error) {
+    log('warn', 'Content', 'Failed to load assistant stream settings:', error);
+    conversationState.setAssistantStreamSettings(DEFAULT_ASSISTANT_STREAM_SETTINGS);
+  }
+}
+
+function setupAssistantStreamSettingsListener() {
+  chrome.storage?.onChanged?.addListener((changes, areaName) => {
+    if (areaName === 'local' && changes[STORAGE_KEYS.ASSISTANT_STREAM_SETTINGS]) {
+      loadAssistantStreamSettings();
+    }
+  });
+}
 
 /**
  * 设置来自 sidepanel 的消息监听
@@ -105,6 +132,19 @@ function setupMessageListener() {
         toggleLock().then(() => sendResponse({ success: true })).catch(err => sendResponse({ success: false, error: err?.message || String(err) }));
         return true;
       }
+    }
+
+    if (message.type === MESSAGE_TYPES.ASSISTANT_STREAM_SETTINGS_CHANGED) {
+      (async () => {
+        await loadAssistantStreamSettings();
+        const conversationId = extractConversationId();
+        if (conversationId) {
+          await fetchAndProcessConversation(conversationId);
+        }
+      })()
+        .then(() => sendResponse({ success: true }))
+        .catch(err => sendResponse({ success: false, error: err?.message || String(err) }));
+      return true;
     }
 
     return false;
@@ -507,6 +547,9 @@ async function main() {
   // 初始化 token 监听器（监听自动捕获的 token 更新）
   initTokenListener();
 
+  await loadAssistantStreamSettings();
+  setupAssistantStreamSettingsListener();
+
   // 设置消息监听器（在最早期就设置，以便接收来自 sidepanel 的消息）
   setupMessageListener();
 
@@ -636,18 +679,19 @@ async function handleIncrementalMessage(messageData) {
     }
 
     // 添加增量节点到状态
-    const added = conversationState.addIncrementalNode(messageData);
+    const updateResult = conversationState.addIncrementalNode(messageData);
 
-    if (!added) {
-      log('debug', 'Content', 'Node already exists or failed to add');
+    if (!updateResult.changed) {
+      log('debug', 'Content', 'Node already exists or failed to add', updateResult);
       return;
     }
 
     // 获取增量更新数据
-    const incrementalUpdate = conversationState.getIncrementalUpdate(messageData.id);
+    const incrementalUpdate = conversationState.getIncrementalUpdate(updateResult.nodeId);
 
     log('info', 'Content', 'Incremental update prepared', {
-      nodeId: messageData.id.substring(0, 8) + '...',
+      nodeId: updateResult.nodeId.substring(0, 8) + '...',
+      action: updateResult.action,
       totalNodes: conversationState.getStats().totalNodes
     });
 
@@ -733,7 +777,13 @@ async function fetchAndProcessConversation(conversationId) {
     });
 
     // 2. 解析 mapping（返回 nodes 和 edges）
-    const { nodes, edges } = parseMapping(data.mapping, conversationId);
+    const parsed = parseMapping(data.mapping, conversationId);
+    const normalized = normalizeAssistantStreamNodes(parsed.nodes, {
+      mode: conversationState.assistantStreamSettings?.mode || DEFAULT_ASSISTANT_STREAM_SETTINGS.mode,
+      conversationId
+    });
+    const nodes = normalized.nodes;
+    const edges = parsed.nodes.length > 0 ? normalized.edges : parsed.edges;
     const stats = getNodeStatistics(nodes);
 
     log('info', 'Content', 'Parsed', { nodes: nodes.length, edges: edges.length, ...stats });

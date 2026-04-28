@@ -104,6 +104,104 @@
       margin-top: 2px;
     }
 
+    .header-settings-btn {
+      flex: 0 0 auto;
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border-radius: 8px;
+      border: 1px solid var(--color-border);
+      background: var(--color-surface);
+      color: var(--color-text-secondary);
+      box-shadow: none;
+    }
+
+    .header-settings-btn:hover {
+      background: var(--color-bg);
+      color: var(--color-text);
+      border-color: var(--color-text-tertiary);
+      transform: none;
+    }
+
+    .header-settings-btn svg {
+      width: 17px;
+      height: 17px;
+      stroke: currentColor;
+    }
+
+    .popup-settings-panel {
+      padding: 14px 20px 0;
+      border-bottom: 1px solid var(--color-border);
+      background: var(--color-bg);
+    }
+
+    .popup-settings-panel.collapsed {
+      display: none;
+    }
+
+    .popup-settings-card {
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+
+    .popup-settings-card h3 {
+      padding: 12px 16px 4px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .setting-help {
+      padding: 0 16px 10px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--color-text-secondary);
+      border-bottom: 1px solid var(--color-border-light);
+    }
+
+    .stream-mode-option {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 12px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--color-border-light);
+    }
+
+    .stream-mode-option:last-child {
+      border-bottom: none;
+    }
+
+    .stream-mode-option:hover {
+      background: var(--color-bg);
+    }
+
+    .stream-mode-option input {
+      margin-top: 3px;
+      accent-color: var(--color-accent);
+    }
+
+    .stream-mode-option span {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .stream-mode-option strong {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+
+    .stream-mode-option small {
+      font-size: 12px;
+      line-height: 1.45;
+      color: var(--color-text-secondary);
+    }
+
     /* Content */
     .content-wrapper {
       padding: 20px;
@@ -585,7 +683,22 @@
         <p data-i18n="popupSubtitle">Branch Visualizer</p>
       </div>
     </div>
+    <button
+      class="header-settings-btn"
+      id="popup-settings-btn"
+      type="button"
+      aria-label="Settings"
+      aria-expanded="false"
+      data-i18n-title="popupSettingsButtonTitle"
+    >
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 8.5a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7Z" stroke-width="1.8"/>
+        <path d="M19.4 13.5a7.8 7.8 0 0 0 .05-1.5l2-1.55-2-3.46-2.45.98a8.11 8.11 0 0 0-1.31-.76L15.32 4h-4l-.37 3.21c-.46.2-.9.46-1.31.76l-2.45-.98-2 3.46 2 1.55a7.8 7.8 0 0 0 0 1.5l-2 1.55 2 3.46 2.45-.98c.41.3.85.56 1.31.76l.37 3.21h4l.37-3.21c.46-.2.9-.46 1.31-.76l2.45.98 2-3.46-2.05-1.55Z" stroke-width="1.8" stroke-linejoin="round"/>
+      </svg>
+    </button>
   </div>
+
+  <div id="popup-settings-panel" class="popup-settings-panel collapsed"></div>
 
   <div class="content-wrapper">
     <div id="language-switcher-container"></div>
