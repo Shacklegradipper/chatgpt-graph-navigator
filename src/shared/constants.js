@@ -62,7 +62,10 @@ export const MESSAGE_TYPES = {
   BACKUP_UPDATE_MAPPING: 'BACKUP_UPDATE_MAPPING',
 
   // Visual export
-  CAPTURE_HTML_ASSETS_AS_PNG: 'CAPTURE_HTML_ASSETS_AS_PNG'
+  CAPTURE_HTML_ASSETS_AS_PNG: 'CAPTURE_HTML_ASSETS_AS_PNG',
+
+  // Assistant answer grouping
+  ASSISTANT_STREAM_SETTINGS_CHANGED: 'ASSISTANT_STREAM_SETTINGS_CHANGED'
 };
 
 // 节点角色
@@ -87,7 +90,18 @@ export const STORAGE_KEYS = {
   // Restore mode enabled (default: false)
   RESTORE_MODE_ENABLED: 'chatgpt_graph_restore_mode_enabled',
   // Backup chat context rounds: 0 = all history (default), >0 = last N rounds
-  BACKUP_CHAT_CONTEXT_ROUNDS: 'chatgpt_graph_backup_chat_context_rounds'
+  BACKUP_CHAT_CONTEXT_ROUNDS: 'chatgpt_graph_backup_chat_context_rounds',
+  // How streamed / thinking assistant output should be represented in the graph.
+  ASSISTANT_STREAM_SETTINGS: 'chatgpt_graph_assistant_stream_settings'
+};
+
+export const ASSISTANT_STREAM_OUTPUT_MODES = {
+  MERGE_ALL: 'merge_all',
+  FINAL_ONLY: 'final_only'
+};
+
+export const DEFAULT_ASSISTANT_STREAM_SETTINGS = {
+  mode: ASSISTANT_STREAM_OUTPUT_MODES.FINAL_ONLY
 };
 
 // 内容折叠默认设置

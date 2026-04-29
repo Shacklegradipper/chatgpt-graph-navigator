@@ -3,12 +3,20 @@
  */
 
 import { initI18n, i18n, SUPPORTED_LOCALES, getUserLocale, setUserLocale } from '../shared/i18n.js';
-import { STORAGE_KEYS, DEFAULT_COLLAPSE_SETTINGS } from '../shared/constants.js';
+import {
+  ASSISTANT_STREAM_OUTPUT_MODES,
+  DEFAULT_ASSISTANT_STREAM_SETTINGS,
+  STORAGE_KEYS,
+  DEFAULT_COLLAPSE_SETTINGS
+} from '../shared/constants.js';
 import { MESSAGE_TYPES } from '../shared/constants.js';
 import { sendMessageToTabWithFallback } from '../shared/tab-messaging.js';
 
 // 折叠设置
 let collapseSettings = { ...DEFAULT_COLLAPSE_SETTINGS };
+
+// Assistant streamed output grouping settings
+let assistantStreamSettings = { ...DEFAULT_ASSISTANT_STREAM_SETTINGS };
 
 // Side panel UI zoom (CSS zoom). This is independent from the webpage zoom.
 let sidepanelUiZoom = 1;
@@ -61,6 +69,43 @@ async function loadCollapseSettings() {
     console.warn('Failed to load collapse settings:', e);
   }
   return collapseSettings;
+}
+
+async function loadAssistantStreamSettings() {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.ASSISTANT_STREAM_SETTINGS);
+    const stored = result[STORAGE_KEYS.ASSISTANT_STREAM_SETTINGS];
+    assistantStreamSettings = {
+      ...DEFAULT_ASSISTANT_STREAM_SETTINGS,
+      ...(stored || {})
+    };
+  } catch (e) {
+    console.warn('Failed to load assistant stream settings:', e);
+    assistantStreamSettings = { ...DEFAULT_ASSISTANT_STREAM_SETTINGS };
+  }
+
+  return assistantStreamSettings;
+}
+
+async function saveAssistantStreamSettings() {
+  try {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.ASSISTANT_STREAM_SETTINGS]: assistantStreamSettings
+    });
+
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab && tab.url && (tab.url.includes('chatgpt.com') || tab.url.includes('chat.openai.com'))) {
+      try {
+        await sendMessageToTabWithFallback(tab.id, {
+          type: MESSAGE_TYPES.ASSISTANT_STREAM_SETTINGS_CHANGED
+        });
+      } catch (e) {
+        // Content script may be inactive; storage change will still be picked up on next load.
+      }
+    }
+  } catch (e) {
+    console.error('Failed to save assistant stream settings:', e);
+  }
 }
 
 /**
@@ -158,6 +203,45 @@ function createCollapseSettingsHTML() {
           </label>
         </div>
       </div>
+    </div>
+  `;
+}
+
+function createAssistantStreamSettingsHTML() {
+  const currentMode = assistantStreamSettings.mode || DEFAULT_ASSISTANT_STREAM_SETTINGS.mode;
+
+  return `
+    <div class="popup-settings-card">
+      <h3>${i18n('assistantStreamSettingsTitle') || 'Answer Grouping'}</h3>
+      <p class="setting-help">${i18n('assistantStreamSettingsDescription') || 'Choose how ChatGPT Graph handles assistant answers that appear in multiple parts while ChatGPT is thinking.'}</p>
+
+      <label class="stream-mode-option" for="assistant-stream-final-only">
+        <input
+          type="radio"
+          name="assistant-stream-mode"
+          id="assistant-stream-final-only"
+          value="${ASSISTANT_STREAM_OUTPUT_MODES.FINAL_ONLY}"
+          ${currentMode === ASSISTANT_STREAM_OUTPUT_MODES.FINAL_ONLY ? 'checked' : ''}
+        >
+        <span>
+          <strong>${i18n('assistantStreamFinalOnlyLabel') || 'Use only the final answer'}</strong>
+          <small>${i18n('assistantStreamFinalOnlyDescription') || 'Replace interim parts and keep the last completed answer as the graph node.'}</small>
+        </span>
+      </label>
+
+      <label class="stream-mode-option" for="assistant-stream-merge-all">
+        <input
+          type="radio"
+          name="assistant-stream-mode"
+          id="assistant-stream-merge-all"
+          value="${ASSISTANT_STREAM_OUTPUT_MODES.MERGE_ALL}"
+          ${currentMode === ASSISTANT_STREAM_OUTPUT_MODES.MERGE_ALL ? 'checked' : ''}
+        >
+        <span>
+          <strong>${i18n('assistantStreamMergeAllLabel') || 'Merge all streamed parts'}</strong>
+          <small>${i18n('assistantStreamMergeAllDescription') || 'Keep every visible part, but store the group as one graph node.'}</small>
+        </span>
+      </label>
     </div>
   `;
 }
@@ -676,6 +760,39 @@ function bindBackupSettingsEvents() {
   }
 }
 
+function renderPopupSettingsPanel() {
+  const panel = document.getElementById('popup-settings-panel');
+  if (!panel) return;
+
+  panel.innerHTML = createAssistantStreamSettingsHTML();
+  bindAssistantStreamSettingsEvents();
+}
+
+function bindAssistantStreamSettingsEvents() {
+  document.querySelectorAll('input[name="assistant-stream-mode"]').forEach(input => {
+    input.addEventListener('change', async () => {
+      if (!input.checked) return;
+      assistantStreamSettings = {
+        ...assistantStreamSettings,
+        mode: input.value
+      };
+      await saveAssistantStreamSettings();
+    });
+  });
+}
+
+function bindHeaderSettingsButton() {
+  const button = document.getElementById('popup-settings-btn');
+  const panel = document.getElementById('popup-settings-panel');
+  if (!button || !panel) return;
+
+  button.addEventListener('click', () => {
+    const isOpen = !panel.classList.contains('collapsed');
+    panel.classList.toggle('collapsed', isOpen);
+    button.setAttribute('aria-expanded', String(!isOpen));
+  });
+}
+
 // 创建语言切换器
 function createLanguageSwitcher() {
   const container = document.getElementById('language-switcher-container');
@@ -715,6 +832,7 @@ function createLanguageSwitcher() {
     await initI18n(newLocale);
 
     // 重新加载状态以更新界面文本
+    renderPopupSettingsPanel();
     loadStatusContent();
   });
 
@@ -730,6 +848,9 @@ async function loadStatus() {
   // 加载折叠设置
   await loadCollapseSettings();
 
+  // Load assistant streamed output grouping setting
+  await loadAssistantStreamSettings();
+
   // Load side panel UI zoom setting
   await loadSidepanelZoom();
 
@@ -741,6 +862,8 @@ async function loadStatus() {
 
   // 创建语言切换器（只创建一次）
   createLanguageSwitcher();
+  bindHeaderSettingsButton();
+  renderPopupSettingsPanel();
 
   // 加载内容
   loadStatusContent();

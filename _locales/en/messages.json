@@ -426,6 +426,27 @@
   "openFloatingBtn": {
     "message": "Open Floating Window"
   },
+  "popupSettingsButtonTitle": {
+    "message": "Settings"
+  },
+  "assistantStreamSettingsTitle": {
+    "message": "Answer Grouping"
+  },
+  "assistantStreamSettingsDescription": {
+    "message": "Choose how ChatGPT Graph handles assistant answers that appear in multiple parts while ChatGPT is thinking."
+  },
+  "assistantStreamFinalOnlyLabel": {
+    "message": "Use only the final answer"
+  },
+  "assistantStreamFinalOnlyDescription": {
+    "message": "Replace interim parts and keep the last completed answer as the graph node."
+  },
+  "assistantStreamMergeAllLabel": {
+    "message": "Merge all streamed parts"
+  },
+  "assistantStreamMergeAllDescription": {
+    "message": "Keep every visible part, but store the group as one graph node."
+  },
 
   "waitingForToken": {
     "message": "Waiting for token..."

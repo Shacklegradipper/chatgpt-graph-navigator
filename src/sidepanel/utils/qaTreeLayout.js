@@ -104,7 +104,7 @@ export function buildFlowFromQATree(qaTree, selectedPath = new Set(), expandedQN
           content: collapsedAnswer.content,
           preview: collapsedAnswer.preview
         } : null,
-        canExpand: hasSingleAnswer,  // 只要有单个回答就可以展开/折叠
+        canExpand: hasSingleAnswer,
         isExpanded: isExpanded
       },
       position: { x: 0, y: 0 }
